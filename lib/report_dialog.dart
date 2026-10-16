@@ -122,7 +122,10 @@ class _ReportDialogState extends State<ReportDialog>
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('inventory_onedrive_client_id', id);
-      await prefs.setString('inventory_workshop_folder_link', folderLink.text.trim());
+      await prefs.setString(
+        'inventory_workshop_folder_link',
+        folderLink.text.trim(),
+      );
       service.folderLink = folderLink.text.trim();
       final request = await service.startSignIn(id);
       if (!mounted) {
@@ -193,7 +196,7 @@ class _ReportDialogState extends State<ReportDialog>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              '${widget.parts.length} part types · ${widget.parts.fold<int>(0, (n, p) => n + p.quantity)} units',
+              '${widget.parts.length} part types · ${widget.parts.fold<int>(0, (n, p) => n + p.totalQuantity)} units',
             ),
             const SizedBox(height: 8),
             const Text(

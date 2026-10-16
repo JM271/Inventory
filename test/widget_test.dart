@@ -21,14 +21,17 @@ void main() {
     await tester.tap(find.text('Save part'));
     await tester.pumpAndSettle();
     expect(find.text('11-speed chain'), findsOneWidget);
-    await tester.ensureVisible(find.byTooltip('Use one'));
-    await tester.tap(find.byTooltip('Use one'));
+    await tester.drag(find.byType(ListView).first, const Offset(0, -500));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Low stock · min. 2'), findsOneWidget);
+    await tester.ensureVisible(find.byTooltip('Use one · Werkstatt'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Use one · Werkstatt'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Nachbestellen · min. 2'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpWidget(const InventoryApp());
     await tester.pumpAndSettle();
     expect(find.text('11-speed chain'), findsOneWidget);
-    expect(find.textContaining('Low stock · min. 2'), findsOneWidget);
+    expect(find.textContaining('Nachbestellen · min. 2'), findsOneWidget);
   });
 }

@@ -3,7 +3,7 @@
 A phone-first Flutter inventory app for bike parts, tools and workshop supplies.
 
 - Add, edit and delete parts with category, SKU and storage location.
-- Open the book icon in the app bar for the offline catalog: 243 products from New Image V.202605, searchable by SKU, name and category. Select a product, enter its actual quantity and save. Selecting an existing SKU opens its current stock instead of adding a duplicate.
+- Open the book icon in the app bar or choose **Aus Katalog wählen** in **Add a part** for the offline catalog: 243 products from New Image V.202605, searchable by SKU, name and category. Select a product, enter its actual quantity and save. Selecting an existing SKU opens its current stock instead of adding a duplicate.
 - Catalog photos are preserved when editing and saving stock. The source has no photo for OXGT-26 and OXGT-28; those show a placeholder.
 - Receive or use stock with the + / − controls.
 - Search by name, SKU or location and filter by category or low stock.
@@ -40,3 +40,7 @@ Tap the cloud button to sign in with your personal Microsoft account, using the 
 The Inventory client ID (`7398cfd4-950c-4aa3-91ea-2e092163dc78`) is prefilled and saved separately from the old inspection-app setting. You can override the default with `--dart-define=INVENTORY_MICROSOFT_CLIENT_ID=<client-id>`.
 
 Sign-in uses Microsoft’s `/consumers` endpoint, as in Bike Dispatch, while retaining Inventory’s own client ID. In Entra, change Inventory’s **Supported account types** from organization-only to an option that includes **personal Microsoft accounts**, then save. Sign in with a personal account that has edit access to the destination folder. The Microsoft registration must support personal accounts, allow public client flows and grant delegated Files.ReadWrite access. No client secret is used. Mobile sign-in is supported; the browser build displays guidance instead. Live sign-in and uploads require verification with your Microsoft account.
+
+## Werkstatt und Auto
+
+Each product has separate quantities and minimum stock for Werkstatt and Auto. Existing saved quantities and minimums remain in Werkstatt; Auto starts at zero. Choose Alle / Werkstatt / Auto above the search. The stock counters and low-stock filter follow the selection. Use Umlagern to move a positive quantity between locations without changing the total. Car minimum zero disables car restocking warnings until a minimum is configured. PDF and Excel reports always include both locations and total stock, regardless of the selected filter. The free-text location remains a shelf/bin description.

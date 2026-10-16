@@ -69,6 +69,10 @@ class InventoryPage extends StatefulWidget {
 class _InventoryPageState extends State<InventoryPage> {
   List<Part> parts = [];
   String query = '', category = 'All parts';
+  StockSite? stockSite;
+  int visibleQuantity(Part p) =>
+      stockSite == null ? p.totalQuantity : p.quantityAt(stockSite!);
+  bool visibleLow(Part p) => stockSite == null ? p.low : p.lowAt(stockSite!);
   bool lowOnly = false, loading = true, exportingReport = false;
   SharedPreferences? prefs;
   String? storageError;
@@ -140,7 +144,7 @@ class _InventoryPageState extends State<InventoryPage> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => PartEditor(part: part),
+      builder: (_) => PartEditor(part: part, existingParts: parts),
     );
     if (result == null || !mounted) {
       return;
@@ -201,13 +205,137 @@ class _InventoryPageState extends State<InventoryPage> {
     await edit(existing.isNotEmpty ? existing.first : selected);
   }
 
-  Future<void> adjust(Part part, int delta) async {
-    if (part.quantity + delta < 0) {
-      return;
-    }
-    setState(() => part.quantity += delta);
+  Future<void> adjust(Part part, StockSite site, int delta) async {
+    if (part.quantityAt(site) + delta < 0) return;
+    setState(() => part.adjustAt(site, delta));
     await save();
   }
+
+  Future<void> transfer(Part part) async {
+    var amount = '1';
+    final form = GlobalKey<FormState>();
+    var from = stockSite ?? StockSite.workshop;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: const Text('Umlagern'),
+          content: SingleChildScrollView(
+            child: Form(
+              key: form,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(part.name),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<StockSite>(
+                    isExpanded: true,
+                    initialValue: from,
+                    decoration: const InputDecoration(labelText: 'Richtung'),
+                    items: StockSite.values
+                        .map(
+                          (site) => DropdownMenuItem(
+                            value: site,
+                            child: Text(
+                              site == StockSite.workshop
+                                  ? 'Werkstatt → Auto'
+                                  : 'Auto → Werkstatt',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (site) => update(() => from = site!),
+                  ),
+                  const SizedBox(height: 12),
+                  Text('Verfügbar in ${from.label}: ${part.quantityAt(from)}'),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    initialValue: amount,
+                    onChanged: (value) => amount = value,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Menge'),
+                    validator: (value) {
+                      final number = int.tryParse(value ?? '');
+                      return number == null ||
+                              number <= 0 ||
+                              number > part.quantityAt(from)
+                          ? 'Menge zwischen 1 und ${part.quantityAt(from)} eingeben'
+                          : null;
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (form.currentState!.validate()) Navigator.pop(context, true);
+              },
+              child: const Text('Umlagern'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final count = int.tryParse(amount);
+    if (confirmed == true && mounted && count != null) {
+      setState(() => part.transfer(from, count));
+      await save();
+    }
+  }
+
+  Widget stockRow(Part p, StockSite site) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 2, 12, 4),
+    child: Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                site.label,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              Text(
+                p.lowAt(site)
+                    ? 'Nachbestellen · min. ${p.minimumAt(site)}'
+                    : 'Min. ${p.minimumAt(site)}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: p.lowAt(site) ? const Color(0xFFA55C1B) : green,
+                ),
+              ),
+            ],
+          ),
+        ),
+        IconButton.outlined(
+          tooltip: 'Use one · ${site.label}',
+          onPressed: p.quantityAt(site) == 0 ? null : () => adjust(p, site, -1),
+          icon: const Icon(Icons.remove, size: 18),
+        ),
+        SizedBox(
+          width: 44,
+          child: Text(
+            '${p.quantityAt(site)}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+        ),
+        IconButton.outlined(
+          tooltip: 'Receive one · ${site.label}',
+          onPressed: () => adjust(p, site, 1),
+          icon: const Icon(Icons.add, size: 18),
+        ),
+      ],
+    ),
+  );
 
   Future<void> remove(Part part) async {
     final confirmed = await showDialog<bool>(
@@ -239,7 +367,7 @@ class _InventoryPageState extends State<InventoryPage> {
         parts
             .where(
               (p) =>
-                  (!lowOnly || p.low) &&
+                  (!lowOnly || visibleLow(p)) &&
                   (category == 'All parts' || p.category == category) &&
                   '${p.name} ${p.sku} ${p.location}'.toLowerCase().contains(
                     query.toLowerCase(),
@@ -345,13 +473,13 @@ class _InventoryPageState extends State<InventoryPage> {
                           ),
                           Expanded(
                             child: metric(
-                              '${parts.fold<int>(0, (sum, p) => sum + p.quantity)}',
+                              '${parts.fold<int>(0, (sum, p) => sum + visibleQuantity(p))}',
                               'Units in stock',
                             ),
                           ),
                           Expanded(
                             child: metric(
-                              '${parts.where((p) => p.low).length}',
+                              '${parts.where(visibleLow).length}',
                               'Need restocking',
                               accent: true,
                             ),
@@ -359,7 +487,24 @@ class _InventoryPageState extends State<InventoryPage> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
+                    SegmentedButton<StockSite?>(
+                      segments: const [
+                        ButtonSegment(value: null, label: Text('Alle')),
+                        ButtonSegment(
+                          value: StockSite.workshop,
+                          label: Text('Werkstatt'),
+                        ),
+                        ButtonSegment(
+                          value: StockSite.car,
+                          label: Text('Auto'),
+                        ),
+                      ],
+                      selected: {stockSite},
+                      onSelectionChanged: (sites) =>
+                          setState(() => stockSite = sites.single),
+                    ),
+                    const SizedBox(height: 16),
                     TextField(
                       onChanged: (v) => setState(() => query = v),
                       decoration: const InputDecoration(
@@ -512,46 +657,27 @@ class _InventoryPageState extends State<InventoryPage> {
                                 ),
                               ),
                             ),
+                            for (final site in StockSite.values)
+                              if (stockSite == null || stockSite == site)
+                                stockRow(p, site),
                             Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 4, 12, 12),
+                              padding: const EdgeInsets.fromLTRB(16, 0, 12, 8),
                               child: Row(
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      p.low
-                                          ? '● ${p.quantity == 0 ? 'Out of stock' : 'Low stock'} · min. ${p.minimum}'
-                                          : 'In stock · min. ${p.minimum}',
-                                      style: TextStyle(
-                                        color: p.low
-                                            ? const Color(0xFFA55C1B)
-                                            : green,
-                                        fontSize: 12,
+                                      'Gesamt: ${p.totalQuantity}',
+                                      style: const TextStyle(
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
                                   ),
-                                  IconButton.outlined(
-                                    tooltip: 'Use one',
-                                    onPressed: p.quantity == 0
+                                  TextButton.icon(
+                                    onPressed: p.totalQuantity == 0
                                         ? null
-                                        : () => adjust(p, -1),
-                                    icon: const Icon(Icons.remove, size: 18),
-                                  ),
-                                  SizedBox(
-                                    width: 44,
-                                    child: Text(
-                                      '${p.quantity}',
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                  IconButton.outlined(
-                                    tooltip: 'Receive one',
-                                    onPressed: () => adjust(p, 1),
-                                    icon: const Icon(Icons.add, size: 18),
+                                        : () => transfer(p),
+                                    icon: const Icon(Icons.swap_horiz),
+                                    label: const Text('Umlagern'),
                                   ),
                                 ],
                               ),
@@ -588,16 +714,25 @@ class _InventoryPageState extends State<InventoryPage> {
 }
 
 class PartEditor extends StatefulWidget {
-  const PartEditor({super.key, this.part});
+  const PartEditor({super.key, this.part, this.existingParts = const []});
   final Part? part;
+  final List<Part> existingParts;
   @override
   State<PartEditor> createState() => _PartEditorState();
 }
 
 class _PartEditorState extends State<PartEditor> {
   final form = GlobalKey<FormState>();
-  late final TextEditingController name, sku, location, quantity, minimum;
+  late final TextEditingController name,
+      sku,
+      location,
+      quantity,
+      minimum,
+      carQuantity,
+      carMinimum;
   late String category;
+  Part? catalogPart;
+  bool editingExisting = false;
   @override
   void initState() {
     super.initState();
@@ -607,12 +742,51 @@ class _PartEditorState extends State<PartEditor> {
     location = TextEditingController(text: p?.location);
     quantity = TextEditingController(text: '${p?.quantity ?? 0}');
     minimum = TextEditingController(text: '${p?.minimum ?? 2}');
+    carQuantity = TextEditingController(text: '${p?.carQuantity ?? 0}');
+    carMinimum = TextEditingController(text: '${p?.carMinimum ?? 0}');
     category = p?.category ?? categories.first;
+  }
+
+  Future<void> chooseFromCatalog() async {
+    FocusScope.of(context).unfocus();
+    final selected = await Navigator.of(
+      context,
+    ).push<Part>(MaterialPageRoute(builder: (_) => const ProductCatalogPage()));
+    if (selected == null || !mounted) return;
+    final matches = widget.existingParts.where(
+      (p) => p.sku.toLowerCase() == selected.sku.toLowerCase(),
+    );
+    final existing = matches.firstOrNull;
+    setState(() {
+      catalogPart = existing == null
+          ? selected
+          : (Part.fromJson(existing.toJson())
+              ..imageAsset = selected.imageAsset);
+      editingExisting = existing != null;
+      name.text = catalogPart!.name;
+      sku.text = catalogPart!.sku;
+      category = catalogPart!.category;
+      if (existing != null) {
+        quantity.text = '${existing.quantity}';
+        minimum.text = '${existing.minimum}';
+        carQuantity.text = '${existing.carQuantity}';
+        carMinimum.text = '${existing.carMinimum}';
+        location.text = existing.location;
+      }
+    });
   }
 
   @override
   void dispose() {
-    for (final c in [name, sku, location, quantity, minimum]) {
+    for (final c in [
+      name,
+      sku,
+      location,
+      quantity,
+      minimum,
+      carQuantity,
+      carMinimum,
+    ]) {
       c.dispose();
     }
     super.dispose();
@@ -674,15 +848,34 @@ class _PartEditorState extends State<PartEditor> {
               ],
             ),
             const SizedBox(height: 20),
-            if (widget.part?.imageAsset.isNotEmpty ?? false)
+            if (widget.part == null) ...[
+              OutlinedButton.icon(
+                onPressed: chooseFromCatalog,
+                icon: const Icon(Icons.menu_book_outlined),
+                label: const Text('Aus Katalog wählen'),
+              ),
+              if (editingExisting)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Artikel bereits im Lager: Du bearbeitest den vorhandenen Bestand.',
+                  ),
+                ),
+              const SizedBox(height: 16),
+            ],
+            if ((catalogPart ?? widget.part)?.imageAsset.isNotEmpty ?? false)
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
                 child: Center(
-                  child: ProductPhoto(part: widget.part!, size: 180),
+                  child: ProductPhoto(
+                    part: (catalogPart ?? widget.part)!,
+                    size: 180,
+                  ),
                 ),
               ),
             field('Part name', name, required: true),
             DropdownButtonFormField<String>(
+              key: ValueKey(category),
               initialValue: category,
               decoration: const InputDecoration(labelText: 'Category'),
               items: categories
@@ -693,6 +886,11 @@ class _PartEditorState extends State<PartEditor> {
             const SizedBox(height: 16),
             field('SKU / part number', sku),
             field('Location (e.g. Shelf A · Bin 3)', location),
+            const Text(
+              'Werkstatt',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -701,8 +899,20 @@ class _PartEditorState extends State<PartEditor> {
                 Expanded(child: field('Minimum stock', minimum, number: true)),
               ],
             ),
+            const Text('Auto', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: field('Menge Auto', carQuantity, number: true)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: field('Minimum Auto', carMinimum, number: true),
+                ),
+              ],
+            ),
             const Text(
-              'Parts at or below the minimum appear in Low stock.',
+              'Mindestbestand je Lager. Minimum Auto = 0 deaktiviert die Nachbestellwarnung im Auto.',
               style: TextStyle(color: Colors.black54, fontSize: 12),
             ),
             const SizedBox(height: 20),
@@ -714,14 +924,18 @@ class _PartEditorState extends State<PartEditor> {
                     Part(
                       id:
                           widget.part?.id ??
+                          catalogPart?.id ??
                           DateTime.now().microsecondsSinceEpoch.toString(),
                       name: name.text.trim(),
                       category: category,
                       sku: sku.text.trim(),
-                      imageAsset: widget.part?.imageAsset ?? '',
+                      imageAsset:
+                          (catalogPart ?? widget.part)?.imageAsset ?? '',
                       location: location.text.trim(),
                       quantity: int.parse(quantity.text),
                       minimum: int.parse(minimum.text),
+                      carQuantity: int.parse(carQuantity.text),
+                      carMinimum: int.parse(carMinimum.text),
                     ),
                   );
                 }

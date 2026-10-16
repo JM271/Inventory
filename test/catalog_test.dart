@@ -36,7 +36,9 @@ void main() {
     SharedPreferences.setMockInitialValues({'test_stock_added_v1': true});
     await tester.pumpWidget(const InventoryApp());
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Product catalog'));
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Aus Katalog wählen'));
     await tester.runAsync(() async {
       await tester.pump();
       await Future<void>.delayed(const Duration(milliseconds: 300));
@@ -57,7 +59,9 @@ void main() {
     expect(find.text('4'), findsWidgets);
     expect(find.byType(ProductPhoto), findsOneWidget);
     // Selecting an existing SKU edits its stock rather than duplicating it.
-    await tester.tap(find.byTooltip('Product catalog'));
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Aus Katalog wählen'));
     await tester.runAsync(() async {
       await tester.pump();
       await Future<void>.delayed(const Duration(milliseconds: 300));

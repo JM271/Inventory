@@ -11,6 +11,12 @@ String _pdfText(String value) => value
     .replaceAll('（', '(')
     .replaceAll('）', ')');
 
+String _siteStatus(Part p, StockSite site) => p.lowAt(site)
+    ? 'Nachbestellen'
+    : p.quantityAt(site) == 0
+    ? 'Nicht am Lager'
+    : 'Am Lager';
+
 Future<Uint8List> buildInventoryPdf(
   List<Part> parts,
   DateTime generatedAt,
@@ -61,10 +67,14 @@ Future<Uint8List> buildInventoryPdf(
       ),
       build: (_) => [
         pw.Text(
-          '${parts.length} Artikel  |  ${parts.fold<int>(0, (sum, p) => sum + p.quantity)} Stück  |  ${parts.where((p) => p.low).length} nachbestellen',
+          '${parts.length} Artikel  |  ${parts.fold<int>(0, (sum, p) => sum + p.totalQuantity)} Stück  |  ${parts.where((p) => p.low).length} nachbestellen',
           style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
         ),
         pw.SizedBox(height: 6),
+        pw.Text(
+          'Werkstatt: ${parts.fold<int>(0, (sum, p) => sum + p.quantity)} Stück  |  Auto: ${parts.fold<int>(0, (sum, p) => sum + p.carQuantity)} Stück',
+          style: const pw.TextStyle(fontSize: 10),
+        ),
         pw.Text(
           'Vollständiger Lagerbestand, unabhängig von Suchfiltern. [TEST] kennzeichnet Testdaten.',
           style: const pw.TextStyle(fontSize: 9),
@@ -74,32 +84,27 @@ Future<Uint8List> buildInventoryPdf(
         if (parts.isNotEmpty)
           pw.TableHelper.fromTextArray(
             headers: [
-              'Artikel / SKU',
-              'Kategorie / Lagerort',
-              'Bestand',
-              'Min.',
-              'Status',
+              'Artikel / SKU / Lagerplatz',
+              'Werkstatt',
+              'Auto',
+              'Gesamt',
             ],
             data: [
               for (final p in sorted)
                 [
-                  _pdfText('${p.name}\n${p.sku}'),
-                  _pdfText('${p.category}\n${p.location}'),
-                  '${p.quantity}',
-                  '${p.minimum}',
-                  p.quantity == 0
-                      ? 'Nicht am Lager'
-                      : p.low
-                      ? 'Nachbestellen'
-                      : 'Am Lager',
+                  _pdfText(
+                    '${p.name}\n${p.sku} · ${p.category}\n${p.location}',
+                  ),
+                  '${p.quantity} Stück · min. ${p.minimum}\n${_siteStatus(p, StockSite.workshop)}',
+                  '${p.carQuantity} Stück · min. ${p.carMinimum}\n${_siteStatus(p, StockSite.car)}',
+                  '${p.totalQuantity}',
                 ],
             ],
             columnWidths: {
               0: const pw.FlexColumnWidth(4),
-              1: const pw.FlexColumnWidth(2.4),
-              2: const pw.FlexColumnWidth(1),
-              3: const pw.FlexColumnWidth(.7),
-              4: const pw.FlexColumnWidth(1.5),
+              1: const pw.FlexColumnWidth(2),
+              2: const pw.FlexColumnWidth(2),
+              3: const pw.FlexColumnWidth(.8),
             },
             headerStyle: pw.TextStyle(
               color: PdfColors.white,
