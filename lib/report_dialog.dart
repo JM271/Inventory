@@ -61,7 +61,7 @@ class _ReportDialogState extends State<ReportDialog>
       final prefs = await SharedPreferences.getInstance();
       if (mounted) {
         folderLink.text =
-            prefs.getString('onedrive_folder_link') ??
+            prefs.getString('inventory_workshop_folder_link') ??
             OneDriveService.defaultFolderLink;
         clientId.text =
             prefs.getString('inventory_onedrive_client_id') ??
@@ -122,7 +122,7 @@ class _ReportDialogState extends State<ReportDialog>
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('inventory_onedrive_client_id', id);
-      await prefs.setString('onedrive_folder_link', folderLink.text.trim());
+      await prefs.setString('inventory_workshop_folder_link', folderLink.text.trim());
       service.folderLink = folderLink.text.trim();
       final request = await service.startSignIn(id);
       if (!mounted) {
@@ -240,7 +240,7 @@ class _ReportDialogState extends State<ReportDialog>
                   controller: folderLink,
                   enabled: ready && !busy,
                   decoration: const InputDecoration(
-                    labelText: 'Shared OneDrive folder link',
+                    labelText: 'Workshop inventory folder link',
                   ),
                 ),
                 ExpansionTile(

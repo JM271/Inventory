@@ -31,7 +31,7 @@ Data is local to the app/browser on one device. There is no cloud sync, stock hi
 
 ## Reports
 
-Tap the cloud button to sign in with your personal Microsoft account, using the same device-code approach as Bike Dispatch and upload a dated Excel inventory report. Enter the Application (client) ID from a Microsoft app registration named **Inventory**. The sign-in name comes from that registration. The shared folder is prefilled and can be changed. Your account needs edit access to that folder. Tokens stay in memory and are cleared when the report dialog closes. Reports contain a snapshot of all stock, independent of filters. This exports reports; it does not synchronize or restore inventory.
+Tap the cloud button to sign in with your personal Microsoft account, using the same device-code approach as Bike Dispatch and upload a dated Excel inventory report. Enter the Application (client) ID from a Microsoft app registration named **Inventory**. The sign-in name comes from that registration. The **workshop inventory** shared folder is prefilled and can be changed. Its setting is saved separately from the previous report destination. Your account needs edit access to that folder. Tokens stay in memory and are cleared when the report dialog closes. Reports contain a snapshot of all stock, independent of filters. This exports reports; it does not synchronize or restore inventory.
 
 The Inventory client ID (`7398cfd4-950c-4aa3-91ea-2e092163dc78`) is prefilled and saved separately from the old inspection-app setting. You can override the default with `--dart-define=INVENTORY_MICROSOFT_CLIENT_ID=<client-id>`.
 
