@@ -7,7 +7,7 @@ void main() {
   testWidgets('add stock, adjust it and reload saved inventory', (
     tester,
   ) async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({'test_stock_added_v1': true});
     await tester.pumpWidget(const InventoryApp());
     await tester.pumpAndSettle();
     await tester.tap(find.byType(FloatingActionButton));

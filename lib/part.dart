@@ -4,12 +4,13 @@ class Part {
     required this.name,
     required this.category,
     this.sku = '',
+    this.imageAsset = '',
     this.location = '',
     this.quantity = 0,
     this.minimum = 2,
   });
   final String id;
-  String name, category, sku, location;
+  String name, category, sku, location, imageAsset;
   int quantity, minimum;
   bool get low => quantity <= minimum;
   Map<String, dynamic> toJson() => {
@@ -17,6 +18,7 @@ class Part {
     'name': name,
     'category': category,
     'sku': sku,
+    'imageAsset': imageAsset,
     'location': location,
     'quantity': quantity,
     'minimum': minimum,
@@ -26,6 +28,7 @@ class Part {
     name: j['name'],
     category: j['category'],
     sku: j['sku'],
+    imageAsset: j['imageAsset'] as String? ?? '',
     location: j['location'],
     quantity: j['quantity'],
     minimum: j['minimum'],

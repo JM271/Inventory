@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'part.dart';
+import 'product_catalog.dart';
+import 'test_stock.dart';
 import 'report_dialog.dart';
 export 'part.dart';
 
@@ -18,6 +20,8 @@ const categories = [
   'Cockpit',
   'Tools',
   'Consumables',
+  'Electrics',
+  'Suspension',
   'Other',
 ];
 const ink = Color(0xFF172C29);
@@ -74,6 +78,16 @@ class _InventoryPageState extends State<InventoryPage> {
       final raw = prefs!.getString('workshop_parts');
       if (raw != null) {
         parts = (jsonDecode(raw) as List).map((j) => Part.fromJson(j)).toList();
+      }
+      if (!(prefs!.getBool('test_stock_added_v1') ?? false)) {
+        parts = addTestStock(parts, await loadProductCatalog());
+        final saved = await prefs!.setString(
+          'workshop_parts',
+          jsonEncode(parts.map((p) => p.toJson()).toList()),
+        );
+        if (!saved || !await prefs!.setBool('test_stock_added_v1', true)) {
+          throw StateError('Could not save test stock');
+        }
       }
     } catch (_) {
       storageError = 'Could not load saved stock. Please restart the app before making changes.';
@@ -134,6 +148,17 @@ class _InventoryPageState extends State<InventoryPage> {
       }
     });
     await save();
+  }
+
+  Future<void> selectProduct() async {
+    final selected = await Navigator.of(
+      context,
+    ).push<Part>(MaterialPageRoute(builder: (_) => const ProductCatalogPage()));
+    if (selected == null || !mounted) return;
+    final existing = parts.where(
+      (p) => p.sku.toLowerCase() == selected.sku.toLowerCase(),
+    );
+    await edit(existing.isNotEmpty ? existing.first : selected);
   }
 
   Future<void> adjust(Part part, int delta) async {
@@ -197,6 +222,11 @@ class _InventoryPageState extends State<InventoryPage> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'Product catalog',
+            icon: const Icon(Icons.menu_book_outlined),
+            onPressed: loading || storageError != null ? null : selectProduct,
+          ),
           IconButton(
             tooltip: 'Excel report to OneDrive',
             icon: const Icon(Icons.cloud_upload_outlined),
@@ -404,11 +434,15 @@ class _InventoryPageState extends State<InventoryPage> {
                                   4,
                                   0,
                                 ),
-                                leading: CircleAvatar(
-                                  backgroundColor: const Color(0xFFEAF0E9),
-                                  foregroundColor: green,
-                                  child: Icon(iconFor(p.category)),
-                                ),
+                                leading: p.imageAsset.isNotEmpty
+                                    ? ProductPhoto(part: p)
+                                    : CircleAvatar(
+                                        backgroundColor: const Color(
+                                          0xFFEAF0E9,
+                                        ),
+                                        foregroundColor: green,
+                                        child: Icon(iconFor(p.category)),
+                                      ),
                                 title: Text(
                                   p.name,
                                   style: const TextStyle(
@@ -601,6 +635,13 @@ class _PartEditorState extends State<PartEditor> {
               ],
             ),
             const SizedBox(height: 20),
+            if (widget.part?.imageAsset.isNotEmpty ?? false)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Center(
+                  child: ProductPhoto(part: widget.part!, size: 180),
+                ),
+              ),
             field('Part name', name, required: true),
             DropdownButtonFormField<String>(
               initialValue: category,
@@ -638,6 +679,7 @@ class _PartEditorState extends State<PartEditor> {
                       name: name.text.trim(),
                       category: category,
                       sku: sku.text.trim(),
+                      imageAsset: widget.part?.imageAsset ?? '',
                       location: location.text.trim(),
                       quantity: int.parse(quantity.text),
                       minimum: int.parse(minimum.text),
