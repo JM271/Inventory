@@ -27,4 +27,8 @@ flutter build web
 
 Android, iOS and web projects are included. Mobile builds require their platform SDKs; iOS also requires signing for a physical device.
 
-Data is local to the app/browser on one device. There is no cloud sync, stock history or backup/export yet. Clearing app data or browser storage removes the inventory. This initial version is intended for a single workshop device.
+Data is local to the app/browser on one device. There is no cloud sync, stock history or inventory restore yet. OneDrive integration is paused and its controls are hidden from the app. Clearing app data or browser storage removes the inventory. This initial version is intended for a single workshop device.
+
+## Reports
+
+OneDrive sign-in and upload are paused. The app runs locally without a Microsoft account. Report-generation and integration source files remain available for future work.

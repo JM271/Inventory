@@ -1,5 +1,8 @@
 import 'dart:convert';
 
+import 'part.dart';
+export 'part.dart';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -18,40 +21,6 @@ const categories = [
 ];
 const ink = Color(0xFF172C29);
 const green = Color(0xFF286653);
-
-class Part {
-  Part({
-    required this.id,
-    required this.name,
-    required this.category,
-    this.sku = '',
-    this.location = '',
-    this.quantity = 0,
-    this.minimum = 2,
-  });
-  final String id;
-  String name, category, sku, location;
-  int quantity, minimum;
-  bool get low => quantity <= minimum;
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'name': name,
-    'category': category,
-    'sku': sku,
-    'location': location,
-    'quantity': quantity,
-    'minimum': minimum,
-  };
-  factory Part.fromJson(Map<String, dynamic> j) => Part(
-    id: j['id'],
-    name: j['name'],
-    category: j['category'],
-    sku: j['sku'],
-    location: j['location'],
-    quantity: j['quantity'],
-    minimum: j['minimum'],
-  );
-}
 
 class InventoryApp extends StatelessWidget {
   const InventoryApp({super.key});
@@ -125,8 +94,10 @@ class _InventoryPageState extends State<InventoryPage> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
+          SnackBar(
+            duration: const Duration(seconds: 15),
+            action: SnackBarAction(label: 'Retry save', onPressed: save),
+            content: const Text(
               'Stock could not be saved. Keep the app open and try again.',
             ),
           ),
