@@ -66,12 +66,13 @@ class _ReportDialogState extends State<ReportDialog>
         clientId.text =
             prefs.getString('inventory_onedrive_client_id') ??
             OneDriveService.defaultClientId;
+        service.folderLink = folderLink.text.trim();
+        if (!kIsWeb) await service.restoreSession(clientId.text.trim());
       }
     } catch (_) {
       if (mounted) {
         setState(
-          () =>
-              error = 'Could not load setup. Enter your application ID below.',
+          () => error = 'Die gespeicherte Microsoft-Verbindung konnte nicht geladen werden. Bitte erneut anmelden.',
         );
       }
     }
@@ -152,6 +153,33 @@ class _ReportDialogState extends State<ReportDialog>
       if (mounted) {
         setState(() => busy = false);
       }
+    }
+  }
+
+  Future<void> signOut() async {
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    try {
+      await service.disconnect();
+      if (mounted) {
+        setState(() {
+          uploaded = null;
+          filename = null;
+          reportBytes = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(
+          () => error = e is OneDriveException
+              ? e.message
+              : 'Abmelden fehlgeschlagen. Bitte erneut versuchen.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => busy = false);
     }
   }
 
@@ -259,7 +287,7 @@ class _ReportDialogState extends State<ReportDialog>
                   ],
                 ),
                 const Text(
-                  'Sign in for each report session. Access tokens stay in memory and are cleared when you close this window.',
+                  'Einmal anmelden: Die Verbindung wird sicher auf diesem Gerät gespeichert und für weitere Uploads automatisch erneuert.',
                   style: TextStyle(fontSize: 12, color: Colors.black54),
                 ),
                 const SizedBox(height: 12),
@@ -287,19 +315,22 @@ class _ReportDialogState extends State<ReportDialog>
                     label: const Text('Sign in to Microsoft'),
                   ),
               ] else ...[
-                const Text('Microsoft connected. Ready to upload.'),
+                const Text(
+                  'Microsoft verbunden. Für weitere Uploads bleibst du angemeldet.',
+                ),
                 const SizedBox(height: 12),
                 FilledButton.icon(
                   onPressed: busy ? null : upload,
                   icon: const Icon(Icons.cloud_upload_outlined),
                   label: const Text('Upload Excel report'),
                 ),
-                TextButton(
-                  onPressed: busy ? null : () => setState(service.disconnect),
-                  child: const Text('Use another account'),
-                ),
               ],
             ],
+            if (!kIsWeb && service.connected)
+              TextButton(
+                onPressed: busy ? null : signOut,
+                child: const Text('Abmelden / Konto wechseln'),
+              ),
             if (busy)
               const Padding(
                 padding: EdgeInsets.only(top: 16),

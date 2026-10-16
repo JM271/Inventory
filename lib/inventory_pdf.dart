@@ -30,7 +30,7 @@ Future<Uint8List> buildInventoryPdf(
   final date = generatedAt.toLocal();
   String two(int value) => value.toString().padLeft(2, '0');
   final timestamp =
-      '${two(date.day)}.${two(date.month)}.${date.year} ${two(date.hour)}:${two(date.minute)}';
+      '${two(date.day)}.${two(date.month)}.${date.year} ${two(date.hour)}:${two(date.minute)}:${two(date.second)}';
   final green = PdfColor.fromHex('#286653');
   document.addPage(
     pw.MultiPage(

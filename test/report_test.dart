@@ -1,5 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 import 'dart:typed_data';
 
 import 'package:excel/excel.dart';
@@ -11,6 +14,8 @@ import 'package:inventory/onedrive_service.dart';
 import 'package:inventory/part.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() => FlutterSecureStorage.setMockInitialValues({}));
   test('Excel preserves SKU text, quantities and restocking status', () {
     final report = Excel.decodeBytes(
       buildInventoryReport([

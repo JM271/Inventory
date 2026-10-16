@@ -1,4 +1,7 @@
 import 'dart:convert';
+
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +10,8 @@ import 'package:http/testing.dart';
 import 'package:inventory/onedrive_service.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() => FlutterSecureStorage.setMockInitialValues({}));
   test('security defaults guidance survives multiple codes and HTTP 403', () {
     final service = OneDriveService();
     addTearDown(service.dispose);

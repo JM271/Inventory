@@ -160,22 +160,31 @@ class _InventoryPageState extends State<InventoryPage> {
     await save();
   }
 
+  Future<PdfReportSnapshot> createPdfReport() async {
+    final now = DateTime.now().toUtc();
+    final snapshot = parts.map((p) => Part.fromJson(p.toJson())).toList();
+    return PdfReportSnapshot(
+      bytes: await buildInventoryPdf(snapshot, now),
+      filename: 'Inventory-${now.toIso8601String().replaceAll(':', '-')}.pdf',
+      generatedAt: now,
+    );
+  }
+
   Future<void> exportReport(BuildContext buttonContext) async {
     if (exportingReport) return;
     setState(() => exportingReport = true);
     try {
-      final now = DateTime.now().toUtc();
-      final snapshot = parts.map((p) => Part.fromJson(p.toJson())).toList();
-      final bytes = await buildInventoryPdf(snapshot, now);
-      final filename =
-          'Inventory-${now.toIso8601String().replaceAll(':', '-')}.pdf';
+      final report = await createPdfReport();
       if (!mounted) return;
       if (widget.openPdfReport != null) {
-        await widget.openPdfReport!(bytes);
+        await widget.openPdfReport!(report.bytes);
       } else {
         await Navigator.of(context).push<void>(
           MaterialPageRoute(
-            builder: (_) => PdfReportPage(bytes: bytes, filename: filename),
+            builder: (_) => PdfReportPage(
+              initialReport: report,
+              onRefresh: createPdfReport,
+            ),
           ),
         );
       }

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class OneDriveException implements Exception {
   OneDriveException(this.message, {this.retryable = false});
@@ -27,7 +28,20 @@ class DeviceSignIn {
 }
 
 class OneDriveService {
-  OneDriveService({http.Client? client}) : _client = client ?? http.Client();
+  OneDriveService({http.Client? client, FlutterSecureStorage? storage})
+    : _client = client ?? http.Client(),
+      _storage =
+          storage ??
+          const FlutterSecureStorage(
+            iOptions: IOSOptions(
+              accessibility: KeychainAccessibility.unlocked_this_device,
+            ),
+          );
+  final FlutterSecureStorage _storage;
+  static const sessionKey = 'inventory_microsoft_session_v1';
+  String? _refreshToken, _clientId;
+  bool _disposed = false;
+  Future<void>? _refreshing;
   final http.Client _client;
   // Microsoft app registration named Inventory.
   static const defaultClientId = String.fromEnvironment(
@@ -39,9 +53,145 @@ class OneDriveService {
   String folderLink = defaultFolderLink;
   String? _token;
   DateTime? _expiresAt;
-  bool get connected =>
+  bool get _accessValid =>
       _token != null &&
-      _expiresAt!.isAfter(DateTime.now().add(const Duration(seconds: 30)));
+      _expiresAt != null &&
+      _expiresAt!.isAfter(DateTime.now().add(const Duration(seconds: 60)));
+  bool get connected => _accessValid || _refreshToken != null;
+
+  Future<void> restoreSession(String clientId) async {
+    try {
+      final raw = await _storage.read(key: sessionKey);
+      if (raw == null || _disposed) return;
+      final data = jsonDecode(raw);
+      if (data is! Map ||
+          data['clientId'] != clientId ||
+          data['refreshToken'] is! String ||
+          (data['refreshToken'] as String).isEmpty) {
+        await disconnect();
+        return;
+      }
+      _clientId = clientId;
+      _refreshToken = data['refreshToken'];
+    } on FormatException {
+      await disconnect();
+    } catch (_) {
+      throw OneDriveException(
+        'Die gespeicherte Microsoft-Anmeldung konnte nicht geladen werden. Bitte erneut anmelden.',
+      );
+    }
+  }
+
+  Future<void> _acceptToken(
+    Map<String, dynamic> data,
+    String clientId, {
+    bool refreshing = false,
+  }) async {
+    if (data['access_token'] is! String ||
+        (data['access_token'] as String).isEmpty ||
+        data['expires_in'] is! int ||
+        (data['expires_in'] as int) <= 0) {
+      throw OneDriveException(
+        'Microsoft returned incomplete sign-in details. Sign in again.',
+      );
+    }
+    if (_disposed) return;
+    final nextRefresh =
+        data['refresh_token'] is String &&
+            (data['refresh_token'] as String).isNotEmpty
+        ? data['refresh_token'] as String
+        : refreshing
+        ? _refreshToken
+        : null;
+    try {
+      if (nextRefresh != null) {
+        await _storage.write(
+          key: sessionKey,
+          value: jsonEncode({
+            'clientId': clientId,
+            'refreshToken': nextRefresh,
+          }),
+        );
+      } else {
+        await _storage.delete(key: sessionKey);
+      }
+    } catch (_) {
+      throw OneDriveException(
+        'Die Microsoft-Anmeldung konnte nicht sicher auf diesem Gerät gespeichert werden. Bitte erneut versuchen.',
+      );
+    }
+    if (_disposed) return;
+    _token = data['access_token'];
+    _clientId = clientId;
+    _refreshToken = nextRefresh;
+    _expiresAt = DateTime.now().add(
+      Duration(seconds: data['expires_in'] as int),
+    );
+  }
+
+  Future<void> _ensureToken({bool force = false}) async {
+    if (!force && _accessValid) return;
+    if (_refreshing != null) return _refreshing!;
+    final pending = _refreshAccessToken();
+    _refreshing = pending;
+    try {
+      await pending;
+    } finally {
+      _refreshing = null;
+    }
+  }
+
+  Future<void> _refreshAccessToken() async {
+    final refresh = _refreshToken;
+    final client = _clientId;
+    if (refresh == null || client == null) {
+      throw OneDriveException('Bitte einmal mit Microsoft anmelden.');
+    }
+    final response = await request(
+      () => _client.post(
+        Uri.parse('$_authority/token'),
+        body: {
+          'grant_type': 'refresh_token',
+          'client_id': client,
+          'refresh_token': refresh,
+          'scope': 'https://graph.microsoft.com/Files.ReadWrite offline_access',
+        },
+      ),
+    );
+    final data = decode(response);
+    if (response.statusCode != 200) {
+      if ([
+        'invalid_grant',
+        'interaction_required',
+        'consent_required',
+      ].contains(data['error'])) {
+        await disconnect();
+        throw OneDriveException(
+          'Microsoft verlangt eine erneute Anmeldung. Bitte einmal neu verbinden; danach bleibst du wieder angemeldet.',
+        );
+      }
+      throw responseError(response, data);
+    }
+    await _acceptToken(data, client, refreshing: true);
+  }
+
+  Future<http.Response> _authenticated(
+    Future<http.Response> Function() send, {
+    bool upload = false,
+  }) async {
+    await _ensureToken();
+    var response = await request(send, upload: upload);
+    if (response.statusCode == 401 && _refreshToken != null) {
+      _token = null;
+      await _ensureToken(force: true);
+      response = await request(send, upload: upload);
+    }
+    if (response.statusCode == 401) {
+      await disconnect();
+    }
+    return response;
+  }
+
   final _authority = 'https://login.microsoftonline.com/consumers/oauth2/v2.0';
   Map<String, dynamic> decode(http.Response response) {
     try {
@@ -66,7 +216,7 @@ class OneDriveService {
       throw OneDriveException(
         upload
             ? 'Upload confirmation timed out. The file may already be in OneDrive. Retry uses the same filename.'
-            : 'Microsoft took too long to respond. Check your connection and start sign-in again.',
+            : 'Microsoft took too long to respond. Check your connection and try again.',
         retryable: true,
       );
     } on http.ClientException {
@@ -83,7 +233,7 @@ class OneDriveService {
     http.Response response,
     Map<String, dynamic> data,
   ) {
-    if (response.statusCode == 401) disconnect();
+    if (response.statusCode == 401) _token = null;
     final rawCodes = data['error_codes'];
     final codes = <String>{
       if (rawCodes is List)
@@ -156,7 +306,7 @@ class OneDriveService {
         Uri.parse('$_authority/devicecode'),
         body: {
           'client_id': clientId,
-          'scope': 'https://graph.microsoft.com/Files.ReadWrite',
+          'scope': 'https://graph.microsoft.com/Files.ReadWrite offline_access',
         },
       ),
     );
@@ -188,7 +338,7 @@ class OneDriveService {
     );
   }
 
-  // Tokens stay in memory only; restarting the app requires sign-in again.
+  // Refresh tokens are stored in platform secure storage; access tokens stay in memory.
   Future<void> finishSignIn(
     String clientId,
     DeviceSignIn signIn,
@@ -233,18 +383,7 @@ class OneDriveService {
       failures = 0;
       final data = decode(response);
       if (response.statusCode == 200) {
-        if (data['access_token'] is! String ||
-            (data['access_token'] as String).isEmpty ||
-            data['expires_in'] is! int ||
-            (data['expires_in'] as int) <= 0) {
-          throw OneDriveException(
-            'Microsoft returned incomplete sign-in details. Sign in again.',
-          );
-        }
-        _token = data['access_token'] as String;
-        _expiresAt = DateTime.now().add(
-          Duration(seconds: data['expires_in'] as int),
-        );
+        await _acceptToken(data, clientId);
         return;
       }
       if (data['error'] == 'authorization_pending') {
@@ -276,7 +415,7 @@ class OneDriveService {
     }
     final shareId =
         'u!${base64Url.encode(utf8.encode(folderLink.trim())).replaceAll('=', '')}';
-    final folderResponse = await request(
+    final folderResponse = await _authenticated(
       () => _client.get(
         Uri.parse('https://graph.microsoft.com/v1.0/shares/$shareId/driveItem'),
         headers: {'Authorization': 'Bearer $_token'},
@@ -294,7 +433,7 @@ class OneDriveService {
         'The sharing link must point to an accessible OneDrive folder.',
       );
     }
-    final response = await request(
+    final response = await _authenticated(
       () => _client.put(
         Uri.parse(
           'https://graph.microsoft.com/v1.0/drives/${Uri.encodeComponent(driveId)}/items/${Uri.encodeComponent(folderId)}:/${Uri.encodeComponent(filename)}:/content',
@@ -331,13 +470,24 @@ class OneDriveService {
     return url;
   }
 
-  void disconnect() {
+  Future<void> disconnect() async {
     _token = null;
     _expiresAt = null;
+    _refreshToken = null;
+    _clientId = null;
+    try {
+      await _storage.delete(key: sessionKey);
+    } catch (_) {
+      throw OneDriveException(
+        'Die gespeicherte Microsoft-Anmeldung konnte nicht entfernt werden. Bitte Abmelden erneut versuchen.',
+      );
+    }
   }
 
   void dispose() {
-    disconnect();
+    _disposed = true;
+    _token = null;
+    _refreshToken = null;
     _client.close();
   }
 }
