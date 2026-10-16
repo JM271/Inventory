@@ -1,5 +1,10 @@
 import 'dart:convert';
 
+import 'dart:typed_data';
+
+import 'inventory_pdf.dart';
+import 'pdf_report_page.dart';
+
 import 'part.dart';
 import 'product_catalog.dart';
 import 'test_stock.dart';
@@ -55,7 +60,8 @@ class InventoryApp extends StatelessWidget {
 }
 
 class InventoryPage extends StatefulWidget {
-  const InventoryPage({super.key});
+  const InventoryPage({super.key, this.openPdfReport});
+  final Future<void> Function(Uint8List)? openPdfReport;
   @override
   State<InventoryPage> createState() => _InventoryPageState();
 }
@@ -63,7 +69,7 @@ class InventoryPage extends StatefulWidget {
 class _InventoryPageState extends State<InventoryPage> {
   List<Part> parts = [];
   String query = '', category = 'All parts';
-  bool lowOnly = false, loading = true;
+  bool lowOnly = false, loading = true, exportingReport = false;
   SharedPreferences? prefs;
   String? storageError;
   @override
@@ -150,6 +156,40 @@ class _InventoryPageState extends State<InventoryPage> {
     await save();
   }
 
+  Future<void> exportReport(BuildContext buttonContext) async {
+    if (exportingReport) return;
+    setState(() => exportingReport = true);
+    try {
+      final now = DateTime.now().toUtc();
+      final snapshot = parts.map((p) => Part.fromJson(p.toJson())).toList();
+      final bytes = await buildInventoryPdf(snapshot, now);
+      final filename =
+          'Inventory-${now.toIso8601String().replaceAll(':', '-')}.pdf';
+      if (!mounted) return;
+      if (widget.openPdfReport != null) {
+        await widget.openPdfReport!(bytes);
+      } else {
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => PdfReportPage(bytes: bytes, filename: filename),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Der PDF-Bericht konnte nicht erstellt werden. Dein Lagerbestand ist unverändert. Bitte erneut versuchen.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => exportingReport = false);
+    }
+  }
+
   Future<void> selectProduct() async {
     final selected = await Navigator.of(
       context,
@@ -211,15 +251,10 @@ class _InventoryPageState extends State<InventoryPage> {
           );
     return Scaffold(
       appBar: AppBar(
-        title: const Row(
-          children: [
-            Icon(Icons.pedal_bike, color: green, size: 30),
-            SizedBox(width: 10),
-            Text(
-              'spoke',
-              style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -1),
-            ),
-          ],
+        title: const Text(
+          'spoke',
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -1),
         ),
         actions: [
           IconButton(
@@ -241,15 +276,19 @@ class _InventoryPageState extends State<InventoryPage> {
                     ),
                   ),
           ),
-          const Padding(
-            padding: EdgeInsets.only(right: 20),
-            child: Text(
-              'WORKSHOP',
-              style: TextStyle(
-                fontSize: 11,
-                letterSpacing: 2,
-                fontWeight: FontWeight.w600,
-              ),
+          Builder(
+            builder: (buttonContext) => TextButton.icon(
+              onPressed: loading || storageError != null || exportingReport
+                  ? null
+                  : () => exportReport(buttonContext),
+              icon: exportingReport
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.download_outlined),
+              label: const Text('Report'),
             ),
           ),
         ],
