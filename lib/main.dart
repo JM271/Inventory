@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'part.dart';
+import 'report_dialog.dart';
 export 'part.dart';
 
 import 'package:flutter/material.dart';
@@ -195,8 +196,22 @@ class _InventoryPageState extends State<InventoryPage> {
             ),
           ],
         ),
-        actions: const [
-          Padding(
+        actions: [
+          IconButton(
+            tooltip: 'Excel report to OneDrive',
+            icon: const Icon(Icons.cloud_upload_outlined),
+            onPressed: loading || storageError != null
+                ? null
+                : () => showDialog<void>(
+                    context: context,
+                    builder: (_) => ReportDialog(
+                      parts: parts
+                          .map((p) => Part.fromJson(p.toJson()))
+                          .toList(),
+                    ),
+                  ),
+          ),
+          const Padding(
             padding: EdgeInsets.only(right: 20),
             child: Text(
               'WORKSHOP',

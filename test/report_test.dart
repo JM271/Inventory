@@ -43,79 +43,84 @@ void main() {
     expect(sheet.rows[3][1]!.value, IntCellValue(0));
     expect(sheet.rows[5][0]!.value, TextCellValue('Part name'));
   });
-  test(
-    'Device sign-in obeys pending and slow-down, then uploads Excel bytes',
-    () async {
-      var polls = 0;
-      final delays = <int>[];
-      final bytes = Uint8List.fromList([1, 2, 3]);
-      final service = OneDriveService(
-        client: MockClient((request) async {
-          if (request.url.host == 'login.microsoftonline.com') {
-            expect(
-              request.url.path,
-              startsWith('/bbc7ec9d-d0fb-4b6c-a03c-da9a8c4dfe66/oauth2/v2.0/'),
-            );
-          }
-          if (request.url.path.endsWith('/devicecode')) {
-            expect(request.bodyFields['scope'], contains('Files.ReadWrite'));
-            return http.Response(
-              jsonEncode({
-                'user_code': 'ABC123',
-                'device_code': 'private-code',
-                'verification_uri': 'https://microsoft.com/link',
-                'expires_in': 900,
-                'interval': 5,
-              }),
-              200,
-            );
-          }
-          if (request.url.path.endsWith('/token')) {
-            polls++;
-            if (polls == 1) {
-              return http.Response('{"error":"authorization_pending"}', 400);
-            }
-            if (polls == 2) {
-              return http.Response('{"error":"slow_down"}', 400);
-            }
-            return http.Response(
-              '{"access_token":"test-token","expires_in":3600}',
-              200,
-            );
-          }
-          expect(request.method, 'PUT');
-          expect(request.headers['Authorization'], 'Bearer test-token');
-          expect(request.bodyBytes, bytes);
-          expect(request.url.path, contains('report.xlsx'));
+  test('Device sign-in obeys pending and slow-down, then uploads Excel bytes', () async {
+    var polls = 0;
+    final delays = <int>[];
+    final bytes = Uint8List.fromList([1, 2, 3]);
+    final service = OneDriveService(
+      client: MockClient((request) async {
+        if (request.url.host == 'login.microsoftonline.com') {
+          expect(request.url.path, startsWith('/consumers/oauth2/v2.0/'));
+        }
+        if (request.url.path.endsWith('/devicecode')) {
+          expect(request.bodyFields['scope'], contains('Files.ReadWrite'));
           return http.Response(
-            '{"id":"file-id","webUrl":"https://onedrive.live.com/test"}',
-            201,
+            jsonEncode({
+              'user_code': 'ABC123',
+              'device_code': 'private-code',
+              'verification_uri': 'https://microsoft.com/link',
+              'expires_in': 900,
+              'interval': 5,
+            }),
+            200,
           );
-        }),
-      );
-      final request = await service.startSignIn('client');
-      await service.finishSignIn(
-        'client',
-        request,
-        () => false,
-        wait: (d) async {
-          delays.add(d.inSeconds);
-        },
-      );
-      expect(delays, [5, 5, 10]);
-      expect(service.connected, isTrue);
-      expect(
-        await service.upload('report.xlsx', bytes),
-        Uri.parse('https://onedrive.live.com/test'),
-      );
-      service.dispose();
-    },
-  );
+        }
+        if (request.url.path.endsWith('/token')) {
+          polls++;
+          if (polls == 1) {
+            return http.Response('{"error":"authorization_pending"}', 400);
+          }
+          if (polls == 2) {
+            return http.Response('{"error":"slow_down"}', 400);
+          }
+          return http.Response(
+            '{"access_token":"test-token","expires_in":3600}',
+            200,
+          );
+        }
+        if (request.method == 'GET') {
+          return http.Response(
+            '{"id":"folder","folder":{},"parentReference":{"driveId":"drive"}}',
+            200,
+          );
+        }
+        expect(request.method, 'PUT');
+        expect(request.headers['Authorization'], 'Bearer test-token');
+        expect(request.bodyBytes, bytes);
+        expect(request.url.path, contains('report.xlsx'));
+        return http.Response(
+          '{"id":"file-id","webUrl":"https://onedrive.live.com/test"}',
+          201,
+        );
+      }),
+    );
+    final request = await service.startSignIn('client');
+    await service.finishSignIn(
+      'client',
+      request,
+      () => false,
+      wait: (d) async {
+        delays.add(d.inSeconds);
+      },
+    );
+    expect(delays, [5, 5, 10]);
+    expect(service.connected, isTrue);
+    expect(
+      await service.upload('report.xlsx', bytes),
+      Uri.parse('https://onedrive.live.com/test'),
+    );
+    service.dispose();
+  });
   test('Denied uploads are errors and never reported as saved', () async {
     final service = OneDriveService(
       client: MockClient(
         (request) async => request.url.path.endsWith('/token')
             ? http.Response('{"access_token":"test","expires_in":3600}', 200)
+            : request.method == 'GET'
+            ? http.Response(
+                '{"id":"folder","folder":{},"parentReference":{"driveId":"drive"}}',
+                200,
+              )
             : http.Response('{"error":{"code":"accessDenied"}}', 403),
       ),
     );

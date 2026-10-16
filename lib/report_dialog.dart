@@ -1,4 +1,3 @@
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,6 +17,9 @@ class ReportDialog extends StatefulWidget {
 class _ReportDialogState extends State<ReportDialog> {
   final clientId = TextEditingController();
   final service = OneDriveService();
+  final folderLink = TextEditingController(
+    text: OneDriveService.defaultFolderLink,
+  );
   bool busy = false, ready = false;
   DeviceSignIn? signIn;
   String? error;
@@ -34,9 +36,12 @@ class _ReportDialogState extends State<ReportDialog> {
     try {
       final prefs = await SharedPreferences.getInstance();
       if (mounted) {
+        folderLink.text =
+            prefs.getString('onedrive_folder_link') ??
+            OneDriveService.defaultFolderLink;
         clientId.text =
-            prefs.getString('onedrive_client_id') ??
-            '7398cfd4-950c-4aa3-91ea-2e092163dc78';
+            prefs.getString('onedrive_personal_client_id') ??
+            OneDriveService.defaultClientId;
       }
     } catch (_) {
       if (mounted) {
@@ -55,6 +60,7 @@ class _ReportDialogState extends State<ReportDialog> {
   void dispose() {
     service.dispose();
     clientId.dispose();
+    folderLink.dispose();
     super.dispose();
   }
 
@@ -89,7 +95,9 @@ class _ReportDialogState extends State<ReportDialog> {
     });
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('onedrive_client_id', id);
+      await prefs.setString('onedrive_personal_client_id', id);
+      await prefs.setString('onedrive_folder_link', folderLink.text.trim());
+      service.folderLink = folderLink.text.trim();
       final request = await service.startSignIn(id);
       if (!mounted) {
         return;
@@ -158,7 +166,7 @@ class _ReportDialogState extends State<ReportDialog> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Includes all parts, categories, SKU, locations, quantities, minimum levels and stock status. Saves a new dated Excel file in your OneDrive root folder.',
+              'Includes all parts, categories, SKU, locations, quantities, minimum levels and stock status. Saves a new dated Excel file in the configured shared OneDrive folder.',
             ),
             const SizedBox(height: 16),
             if (kIsWeb)
@@ -196,6 +204,14 @@ class _ReportDialogState extends State<ReportDialog> {
                     labelText: 'Microsoft application (client) ID',
                   ),
                 ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: folderLink,
+                  enabled: ready && !busy,
+                  decoration: const InputDecoration(
+                    labelText: 'Shared OneDrive folder link',
+                  ),
+                ),
                 ExpansionTile(
                   tilePadding: EdgeInsets.zero,
                   title: const Text('First-time Microsoft setup'),
@@ -203,7 +219,7 @@ class _ReportDialogState extends State<ReportDialog> {
                     Padding(
                       padding: EdgeInsets.only(bottom: 16),
                       child: SelectableText(
-                        '1. In Microsoft Entra → App registrations, create an app named Spoke Inventory.\n2. This build uses your configured Microsoft directory. Sign in with an account that can access it.\n3. Under Authentication → Settings, enable Allow public client flows.\n4. Under API permissions, add Microsoft Graph → Delegated → Files.ReadWrite.\n5. Copy the Application (client) ID here. No client secret is needed.',
+                        '1. The Bike Dispatch application ID and shared folder are prefilled. You can reuse them.\n2. Sign in with your personal Microsoft account. It needs edit access to the shared folder.\n3. Under Authentication → Settings, enable Allow public client flows.\n4. Under API permissions, add Microsoft Graph → Delegated → Files.ReadWrite.\n5. Copy the Application (client) ID here. No client secret is needed.',
                       ),
                     ),
                   ],

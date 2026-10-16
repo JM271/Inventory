@@ -28,13 +28,16 @@ class DeviceSignIn {
 class OneDriveService {
   OneDriveService({http.Client? client}) : _client = client ?? http.Client();
   final http.Client _client;
+  static const defaultClientId = 'a96bccc0-2029-4229-8c74-26346df9e84e';
+  static const defaultFolderLink =
+      'https://1drv.ms/f/c/8a6d120a3054eb1d/IgC5bzCnGJGUS6ID3E3ClwdwAeBSZAA-BZnlm8z0YLQ-SpE?e=PdzmUT';
+  String folderLink = defaultFolderLink;
   String? _token;
   DateTime? _expiresAt;
   bool get connected =>
       _token != null &&
       _expiresAt!.isAfter(DateTime.now().add(const Duration(seconds: 30)));
-  final _authority =
-      'https://login.microsoftonline.com/bbc7ec9d-d0fb-4b6c-a03c-da9a8c4dfe66/oauth2/v2.0';
+  final _authority = 'https://login.microsoftonline.com/consumers/oauth2/v2.0';
   Map<String, dynamic> decode(http.Response response) {
     try {
       return jsonDecode(response.body) as Map<String, dynamic>;
@@ -201,10 +204,40 @@ class OneDriveService {
     if (!connected) {
       throw OneDriveException('Please sign in to Microsoft again.');
     }
+    final link = Uri.tryParse(folderLink.trim());
+    if (link == null ||
+        link.scheme != 'https' ||
+        !(link.host == '1drv.ms' ||
+            link.host == 'onedrive.live.com' ||
+            link.host == 'onedrive.com' ||
+            link.host.endsWith('.sharepoint.com'))) {
+      throw OneDriveException(
+        'Enter a valid HTTPS OneDrive folder sharing link.',
+      );
+    }
+    final shareId =
+        'u!${base64Url.encode(utf8.encode(folderLink.trim())).replaceAll('=', '')}';
+    final folderResponse = await request(
+      () => _client.get(
+        Uri.parse('https://graph.microsoft.com/v1.0/shares/$shareId/driveItem'),
+        headers: {'Authorization': 'Bearer $_token'},
+      ),
+    );
+    final folder = decode(folderResponse);
+    if (folderResponse.statusCode != 200) {
+      throw responseError(folderResponse, folder);
+    }
+    final driveId = (folder['parentReference'] as Map?)?['driveId'];
+    final folderId = folder['id'];
+    if (folder['folder'] == null || driveId is! String || folderId is! String) {
+      throw OneDriveException(
+        'The sharing link must point to an accessible OneDrive folder.',
+      );
+    }
     final response = await request(
       () => _client.put(
         Uri.parse(
-          'https://graph.microsoft.com/v1.0/me/drive/root:/${Uri.encodeComponent(filename)}:/content',
+          'https://graph.microsoft.com/v1.0/drives/${Uri.encodeComponent(driveId)}/items/${Uri.encodeComponent(folderId)}:/${Uri.encodeComponent(filename)}:/content',
         ),
         headers: {
           'Authorization': 'Bearer $_token',
