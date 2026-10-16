@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,7 +16,28 @@ class ReportDialog extends StatefulWidget {
   State<ReportDialog> createState() => _ReportDialogState();
 }
 
-class _ReportDialogState extends State<ReportDialog> {
+class _ReportDialogState extends State<ReportDialog>
+    with WidgetsBindingObserver {
+  Completer<void>? _foregroundWaiter;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _releaseWaiter();
+  }
+
+  void _releaseWaiter() {
+    final waiter = _foregroundWaiter;
+    _foregroundWaiter = null;
+    if (waiter != null && !waiter.isCompleted) waiter.complete();
+  }
+
+  Future<void> _waitForForeground() async {
+    final state = WidgetsBinding.instance.lifecycleState;
+    if (!mounted || state == null || state == AppLifecycleState.resumed) return;
+    _foregroundWaiter ??= Completer<void>();
+    await _foregroundWaiter!.future;
+  }
+
   final clientId = TextEditingController();
   final service = OneDriveService();
   final folderLink = TextEditingController(
@@ -29,6 +52,7 @@ class _ReportDialogState extends State<ReportDialog> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     load();
   }
 
@@ -40,7 +64,7 @@ class _ReportDialogState extends State<ReportDialog> {
             prefs.getString('onedrive_folder_link') ??
             OneDriveService.defaultFolderLink;
         clientId.text =
-            prefs.getString('onedrive_personal_client_id') ??
+            prefs.getString('inventory_onedrive_client_id') ??
             OneDriveService.defaultClientId;
       }
     } catch (_) {
@@ -58,6 +82,8 @@ class _ReportDialogState extends State<ReportDialog> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _releaseWaiter();
     service.dispose();
     clientId.dispose();
     folderLink.dispose();
@@ -95,7 +121,7 @@ class _ReportDialogState extends State<ReportDialog> {
     });
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('onedrive_personal_client_id', id);
+      await prefs.setString('inventory_onedrive_client_id', id);
       await prefs.setString('onedrive_folder_link', folderLink.text.trim());
       service.folderLink = folderLink.text.trim();
       final request = await service.startSignIn(id);
@@ -103,7 +129,12 @@ class _ReportDialogState extends State<ReportDialog> {
         return;
       }
       setState(() => signIn = request);
-      await service.finishSignIn(id, request, () => !mounted);
+      await service.finishSignIn(
+        id,
+        request,
+        () => !mounted,
+        beforePoll: _waitForForeground,
+      );
       if (mounted) {
         setState(() => signIn = null);
       }
@@ -201,7 +232,7 @@ class _ReportDialogState extends State<ReportDialog> {
                   controller: clientId,
                   enabled: ready && !busy,
                   decoration: const InputDecoration(
-                    labelText: 'Microsoft application (client) ID',
+                    labelText: 'Inventory application (client) ID',
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -219,7 +250,7 @@ class _ReportDialogState extends State<ReportDialog> {
                     Padding(
                       padding: EdgeInsets.only(bottom: 16),
                       child: SelectableText(
-                        '1. The Bike Dispatch application ID and shared folder are prefilled. You can reuse them.\n2. Sign in with your personal Microsoft account. It needs edit access to the shared folder.\n3. Under Authentication → Settings, enable Allow public client flows.\n4. Under API permissions, add Microsoft Graph → Delegated → Files.ReadWrite.\n5. Copy the Application (client) ID here. No client secret is needed.',
+                        '1. In the Inventory Microsoft app registration, enable personal Microsoft accounts under Supported account types.\n2. Sign in with your personal Microsoft account, as in Bike Dispatch. It needs edit access to the shared folder.\n3. Under Authentication → Settings, enable Allow public client flows.\n4. Under API permissions, add Microsoft Graph → Delegated → Files.ReadWrite.\n5. Copy Inventory’s Application (client) ID here. Microsoft displays the name from that registration during sign-in. No client secret is needed.',
                       ),
                     ),
                   ],
