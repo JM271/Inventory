@@ -765,7 +765,7 @@ class _PartEditorState extends State<PartEditor> {
     final matches = widget.existingParts.where(
       (p) => p.sku.toLowerCase() == selected.sku.toLowerCase(),
     );
-    final existing = matches.firstOrNull;
+    final existing = widget.part == null ? matches.firstOrNull : null;
     setState(() {
       catalogPart = existing == null
           ? selected
@@ -857,21 +857,19 @@ class _PartEditorState extends State<PartEditor> {
               ],
             ),
             const SizedBox(height: 20),
-            if (widget.part == null) ...[
-              OutlinedButton.icon(
-                onPressed: chooseFromCatalog,
-                icon: const Icon(Icons.menu_book_outlined),
-                label: const Text('Aus Katalog wählen'),
-              ),
-              if (editingExisting)
-                const Padding(
-                  padding: EdgeInsets.only(top: 8),
-                  child: Text(
-                    'Artikel bereits im Lager: Du bearbeitest den vorhandenen Bestand.',
-                  ),
+            OutlinedButton.icon(
+              onPressed: chooseFromCatalog,
+              icon: const Icon(Icons.menu_book_outlined),
+              label: const Text('Aus Katalog wählen'),
+            ),
+            if (editingExisting)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                  'Artikel bereits im Lager: Du bearbeitest den vorhandenen Bestand.',
                 ),
-              const SizedBox(height: 16),
-            ],
+              ),
+            const SizedBox(height: 16),
             if ((catalogPart ?? widget.part)?.imageAsset.isNotEmpty ?? false)
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
