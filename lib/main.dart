@@ -10,6 +10,7 @@ import 'product_catalog.dart';
 import 'test_stock.dart';
 import 'report_dialog.dart';
 export 'part.dart';
+export 'product_catalog.dart' show categories;
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,17 +19,6 @@ void main() {
   runApp(const InventoryApp());
 }
 
-const categories = [
-  'Drivetrain',
-  'Brakes',
-  'Wheels & tyres',
-  'Cockpit',
-  'Tools',
-  'Consumables',
-  'Electrics',
-  'Suspension',
-  'Other',
-];
 const ink = Color(0xFF172C29);
 const green = Color(0xFF286653);
 

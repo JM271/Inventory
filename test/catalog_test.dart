@@ -6,10 +6,81 @@ import 'package:inventory/product_catalog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  testWidgets('new catalog product validates, persists and can be selected', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      rootBundle.evict('assets/product_catalog.json');
+      await loadProductCatalog();
+    });
+    Part? selected;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () async {
+                selected = await Navigator.of(context).push<Part>(
+                  MaterialPageRoute(builder: (_) => const ProductCatalogPage()),
+                );
+              },
+              child: const Text('Open catalog'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open catalog'));
+    await tester.runAsync(() async {
+      await tester.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    });
+    await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      await tester.tap(find.text('New product'));
+    });
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save product'));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter a product name'), findsOneWidget);
+    expect(find.text('Enter a SKU'), findsOneWidget);
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Product name'),
+      'Custom brake',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'SKU'),
+      'oxv8-01e',
+    );
+    await tester.tap(find.text('Save product'));
+    await tester.pumpAndSettle();
+    expect(find.text('This SKU is already in the catalog'), findsOneWidget);
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'SKU'),
+      ' CUSTOM-001 ',
+    );
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Save product'));
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    });
+    await tester.pumpAndSettle();
+    final reloaded = await tester.runAsync(loadProductCatalog);
+    final product = reloaded!.singleWhere((p) => p.sku == 'CUSTOM-001');
+    expect(product.name, 'Custom brake');
+    expect(product.quantity, 0);
+    await tester.enterText(find.byType(TextField), 'CUSTOM-001');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CUSTOM-001').last);
+    await tester.pumpAndSettle();
+    expect(selected!.id, product.id);
+  });
+
   testWidgets('all catalog products have unique SKUs and bundled photos', (
     tester,
   ) async {
-    final products = await loadProductCatalog();
+    final products = (await tester.runAsync(loadProductCatalog))!;
     expect(products.length, 243);
     expect(products.map((p) => p.sku).toSet().length, 243);
     for (final p in products) {
