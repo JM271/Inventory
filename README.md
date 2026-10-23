@@ -2,13 +2,16 @@
 
 A phone-first Flutter inventory app for bike parts, tools and workshop supplies.
 
+**Version 2:** Firebase Authentication and shared Firestore stock for mobile and web.
+Setup, first administrator and migration: [FIREBASE_SETUP.md](FIREBASE_SETUP.md).
+
 - Add, edit and delete parts with category, SKU and storage location.
 - Open the book icon in the app bar or choose **Aus Katalog wählen** in **Add a part** for the offline catalog: 243 products from New Image V.202605, searchable by SKU, name and category. Select a product, enter its actual quantity and save. Selecting an existing SKU opens its current stock instead of adding a duplicate.
 - Catalog photos are preserved when editing and saving stock. The source has no photo for OXGT-26 and OXGT-28; those show a placeholder.
 - Receive or use stock with the + / − controls.
 - Search by name, SKU or location and filter by category or low stock.
 - Minimum stock levels flag parts that need restocking (quantity ≤ minimum).
-- Inventory saves locally using shared_preferences. On the next launch, five catalog products are added once as clearly labelled [TEST] stock. Existing SKUs are skipped; their quantities are preserved. Test items can be edited or deleted like other stock and will not return after deletion.
+- Version 2 saves shared inventory in Firestore. Legacy local stock remains in shared_preferences until explicitly imported; the shared inventory does not receive automatic test stock.
 
 ## Run
 
@@ -17,7 +20,37 @@ flutter pub get
 flutter run
 ```
 
-For a browser preview: `flutter run -d chrome`.
+## Im Browser nutzen
+
+Die App unterstützt Android, iOS und Browser aus demselben Projekt.
+
+```sh
+flutter run -d chrome --web-hostname localhost --web-port 8080
+```
+
+Für eine lokale Vorschau des fertigen Web-Builds:
+
+```sh
+flutter build web
+python3 -m http.server 8080 --directory build/web
+```
+
+Dann **http://localhost:8080** öffnen. Den Server im Terminal laufen lassen.
+Für eine öffentliche Webadresse den Inhalt von `build/web` auf einem statischen
+HTTPS-Webserver veröffentlichen. Bei Hosting in einem Unterordner zuerst mit
+`flutter build web --base-href /unterordner/` bauen.
+
+Version 2 verwendet das Firebase-Projekt `inventory-molenstraat`. Freigegebene
+Nutzer teilen Lagerbestand und eigene Katalogprodukte zwischen Geräten und
+Browsern. Anmeldung und Buchungen benötigen eine Internetverbindung.
+Die bisherigen lokalen Daten bleiben erhalten und können einmalig in das noch
+unbenutzte gemeinsame Lager übernommen werden. Einrichtung und Nutzerverwaltung:
+[FIREBASE_SETUP.md](FIREBASE_SETUP.md).
+
+Katalog, Lagerbearbeitung und PDF-Berichte sind im Browser verfügbar.
+Für die PDF-Vorschau ist eine Internetverbindung zum Laden der PDF-Komponente
+nötig; Drucken und Speichern erfolgen über die Browserfunktionen.
+Microsoft-Anmeldung und OneDrive-Upload sind derzeit nur mobil unterstützt.
 
 ## Verify
 
@@ -29,7 +62,7 @@ flutter build web
 
 Android, iOS and web projects are included. Mobile builds require their platform SDKs; iOS also requires signing for a physical device.
 
-Data is local to the app/browser on one device. There is no cloud sync, stock history or inventory restore yet. OneDrive report export is available from the cloud button in the app bar. Clearing app data or browser storage removes the inventory. This initial version is intended for a single workshop device.
+Shared inventory is synchronized through Firestore after sign-in and administrator approval. The OneDrive button exports reports separately; it does not synchronize inventory. Legacy local data is device/browser-specific and is removed if that local storage is cleared.
 
 ## Reports
 

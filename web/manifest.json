@@ -1,12 +1,12 @@
 {
-    "name": "inventory",
-    "short_name": "inventory",
+    "name": "Spoke · Lagerverwaltung",
+    "short_name": "Spoke",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#F5F6F2",
+    "theme_color": "#286653",
+    "description": "Lagerverwaltung für Fahrradteile, Werkstatt und Auto.",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {

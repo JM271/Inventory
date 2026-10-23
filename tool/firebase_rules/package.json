@@ -1,0 +1,12 @@
+{
+  "name": "inventory-firebase-rules-tests",
+  "private": true,
+  "scripts": {
+    "test": "firebase emulators:exec --config ../../firebase.json --project demo-inventory --only firestore \"node --test rules.test.cjs\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "firebase": "^13.1.0",
+    "firebase-tools": "^15.34.1"
+  }
+}

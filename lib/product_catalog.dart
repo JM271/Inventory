@@ -1,3 +1,7 @@
+import 'dart:async';
+
+import 'cloud_inventory.dart';
+
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -21,7 +25,7 @@ const categories = [
 
 const _customCatalogKey = 'custom_product_catalog_v1';
 
-Future<List<Part>> loadProductCatalog() async {
+Future<List<Part>> loadProductCatalog({CloudInventory? cloud}) async {
   final data = jsonDecode(
     await rootBundle.loadString('assets/product_catalog.json'),
   ) as List;
@@ -36,6 +40,10 @@ Future<List<Part>> loadProductCatalog() async {
         ),
       )
       .toList();
+  if (cloud != null) {
+    final custom = await cloud.catalog.get();
+    return [...bundled, ...custom.docs.map((doc) => Part.fromJson(doc.data()))];
+  }
   final prefs = await SharedPreferences.getInstance();
   final custom = jsonDecode(prefs.getString(_customCatalogKey) ?? '[]') as List;
   return [...bundled, ...custom.map((row) => Part.fromJson(row))];
@@ -67,18 +75,54 @@ class ProductCatalogPage extends StatefulWidget {
 }
 
 class _ProductCatalogPageState extends State<ProductCatalogPage> {
-  late Future<List<Part>> catalog = loadProductCatalog();
+  late Future<List<Part>> catalog;
+  CloudInventory? cloud;
+  StreamSubscription<dynamic>? catalogSubscription;
+  bool initialized = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = CloudInventoryScope.of(context);
+    if (!initialized || next != cloud) {
+      initialized = true;
+      cloud = next;
+      catalogSubscription?.cancel();
+      catalog = loadProductCatalog(cloud: cloud);
+      catalogSubscription = cloud?.catalog.snapshots().listen(
+        (_) {
+          if (mounted) {
+            setState(() => catalog = loadProductCatalog(cloud: cloud));
+          }
+        },
+        onError: (Object error) {
+          if (mounted) {
+            setState(() => catalog = Future<List<Part>>.error(error));
+          }
+        },
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    catalogSubscription?.cancel();
+    super.dispose();
+  }
+
   String query = '';
 
   Future<void> createProduct() async {
     final products = await catalog;
     if (!mounted) return;
     final created = await Navigator.of(context).push<Part>(
-      MaterialPageRoute(builder: (_) => _NewProductPage(products: products)),
+      MaterialPageRoute(
+        builder: (_) => _NewProductPage(products: products, cloud: cloud),
+      ),
     );
     if (created == null || !mounted) return;
     setState(() {
-      catalog = loadProductCatalog();
+      catalog = loadProductCatalog(cloud: cloud);
     });
   }
 
@@ -152,7 +196,8 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
 }
 
 class _NewProductPage extends StatefulWidget {
-  const _NewProductPage({required this.products});
+  const _NewProductPage({required this.products, this.cloud});
+  final CloudInventory? cloud;
   final List<Part> products;
 
   @override
@@ -177,15 +222,20 @@ class _NewProductPageState extends State<_NewProductPage> {
     if (saving || !form.currentState!.validate()) return;
     setState(() => saving = true);
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final custom =
-          jsonDecode(prefs.getString(_customCatalogKey) ?? '[]') as List;
       final product = Part(
         id: 'custom-${DateTime.now().microsecondsSinceEpoch}',
         name: name.text.trim(),
         sku: sku.text.trim(),
         category: category,
       );
+      if (widget.cloud != null) {
+        await widget.cloud!.saveCatalogProduct(product);
+        if (mounted) Navigator.pop(context, product);
+        return;
+      }
+      final prefs = await SharedPreferences.getInstance();
+      final custom =
+          jsonDecode(prefs.getString(_customCatalogKey) ?? '[]') as List;
       final saved = await prefs.setString(
         _customCatalogKey,
         jsonEncode([...custom, product.toJson()]),

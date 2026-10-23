@@ -1,0 +1,66 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function membership() {
+      return get(/databases/$(database)/documents/workshops/molenstraat/members/$(request.auth.uid)).data;
+    }
+    function member() {
+      return signedIn() && membership().role in ['admin', 'editor'];
+    }
+    function admin() { return signedIn() && membership().role == 'admin'; }
+    function validPart(data) {
+      return data.keys().hasAll(['id', 'name', 'category', 'sku', 'imageAsset', 'location', 'quantity', 'minimum', 'carQuantity', 'carMinimum'])
+        && data.keys().hasOnly(['id', 'name', 'category', 'sku', 'imageAsset', 'location', 'quantity', 'minimum', 'carQuantity', 'carMinimum'])
+        && data.id is string && data.id.size() > 0 && data.id.size() <= 512
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 500
+        && data.category is string && data.category.size() <= 100
+        && data.sku is string && data.sku.size() <= 200
+        && data.imageAsset is string && data.imageAsset.size() <= 500
+        && data.location is string && data.location.size() <= 500
+        && data.quantity is int && data.quantity >= 0
+        && data.minimum is int && data.minimum >= 0
+        && data.carQuantity is int && data.carQuantity >= 0
+        && data.carMinimum is int && data.carMinimum >= 0;
+    }
+    match /users/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || admin());
+      allow list: if admin();
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['email'])
+        && request.resource.data.email == request.auth.token.email;
+      allow delete: if false;
+    }
+    match /workshops/molenstraat {
+      allow read: if member();
+      // Only the initial-import marker lives here. It can never be reset.
+      allow create, update: if member()
+        && request.resource.data.keys().hasOnly(['initialized'])
+        && request.resource.data.initialized == true;
+      allow delete: if false;
+      match /members/{uid} {
+        allow get: if signedIn() && (request.auth.uid == uid || admin());
+        allow list: if admin();
+        allow create, update: if admin() && uid != request.auth.uid
+          && request.resource.data.keys().hasOnly(['role'])
+          && request.resource.data.role in ['admin', 'editor'];
+        allow delete: if admin() && uid != request.auth.uid;
+      }
+      match /parts/{partId} {
+        allow read: if member();
+        allow create: if member() && validPart(request.resource.data)
+          && getAfter(/databases/$(database)/documents/workshops/molenstraat).data.initialized == true;
+        allow update: if member() && validPart(request.resource.data)
+          && request.resource.data.id == resource.data.id;
+        allow delete: if member();
+      }
+      match /catalog/{sku} {
+        allow read: if member();
+        allow create: if member() && validPart(request.resource.data)
+          && request.resource.data.sku.size() > 0;
+        allow update, delete: if false;
+      }
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

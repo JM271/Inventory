@@ -1,3 +1,10 @@
+import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart';
+
+import 'cloud_inventory.dart';
+import 'firebase_gate.dart';
+
 import 'dart:convert';
 
 import 'dart:typed_data';
@@ -16,14 +23,16 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  runApp(const InventoryApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const InventoryApp(useFirebase: true));
 }
 
 const ink = Color(0xFF172C29);
 const green = Color(0xFF286653);
 
 class InventoryApp extends StatelessWidget {
-  const InventoryApp({super.key});
+  const InventoryApp({super.key, this.useFirebase = false});
+  final bool useFirebase;
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
@@ -45,12 +54,24 @@ class InventoryApp extends StatelessWidget {
         ),
       ),
     ),
-    home: const InventoryPage(),
+    home: useFirebase
+        ? FirebaseGate(
+            inventoryBuilder: (store, admin) =>
+                InventoryPage(cloud: store, admin: admin),
+          )
+        : const InventoryPage(),
   );
 }
 
 class InventoryPage extends StatefulWidget {
-  const InventoryPage({super.key, this.openPdfReport});
+  const InventoryPage({
+    super.key,
+    this.openPdfReport,
+    this.cloud,
+    this.admin = false,
+  });
+  final CloudInventory? cloud;
+  final bool admin;
   final Future<void> Function(Uint8List)? openPdfReport;
   @override
   State<InventoryPage> createState() => _InventoryPageState();
@@ -65,6 +86,67 @@ class _InventoryPageState extends State<InventoryPage> {
   bool visibleLow(Part p) => stockSite == null ? p.low : p.lowAt(stockSite!);
   bool lowOnly = false, loading = true, exportingReport = false;
   SharedPreferences? prefs;
+  StreamSubscription<dynamic>? cloudSubscription;
+  bool cloudBusy = false, fromCache = true;
+
+  @override
+  void dispose() {
+    cloudSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> cloudWrite(Future<void> Function() action) async {
+    if (cloudBusy) return;
+    setState(() => cloudBusy = true);
+    try {
+      await action();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(cloudError(e))));
+      }
+    } finally {
+      if (mounted) setState(() => cloudBusy = false);
+    }
+  }
+
+  Future<void> importLocal() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString("workshop_parts");
+    final local = (jsonDecode(raw ?? "[]") as List)
+        .map((p) => Part.fromJson(p))
+        .where((p) => !p.name.startsWith("[TEST]"))
+        .toList();
+    final custom = (jsonDecode(
+      prefs.getString('custom_product_catalog_v1') ?? '[]',
+    ) as List).map((p) => Part.fromJson(p)).toList();
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Lokalen Bestand übernehmen?"),
+        content: Text(
+          "${local.length} Lagerartikel und ${custom.length} eigene Katalogprodukte in das bisher unbenutzte gemeinsame Lager übernehmen. Testartikel werden ausgelassen. Die lokalen Daten bleiben erhalten. Ein bereits verwendetes gemeinsames Lager wird nicht überschrieben.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Abbrechen"),
+          ),
+          FilledButton(
+            onPressed: local.isEmpty && custom.isEmpty
+                ? null
+                : () => Navigator.pop(context, true),
+            child: const Text("Übernehmen"),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await cloudWrite(() => widget.cloud!.importLocal(local, custom: custom));
+    }
+  }
+
   String? storageError;
   @override
   void initState() {
@@ -73,6 +155,32 @@ class _InventoryPageState extends State<InventoryPage> {
   }
 
   Future<void> load() async {
+    if (widget.cloud != null) {
+      cloudSubscription = widget.cloud!.parts
+          .snapshots(includeMetadataChanges: true)
+          .listen(
+            (snapshot) {
+              if (!mounted) return;
+              setState(() {
+                parts = snapshot.docs
+                    .map((doc) => Part.fromJson(doc.data()))
+                    .toList();
+                fromCache = snapshot.metadata.isFromCache;
+                storageError = null;
+                loading = false;
+              });
+            },
+            onError: (Object error) {
+              if (!mounted) return;
+              setState(() {
+                parts = [];
+                loading = false;
+                storageError = cloudError(error);
+              });
+            },
+          );
+      return;
+    }
     try {
       prefs = await SharedPreferences.getInstance();
       final raw = prefs!.getString('workshop_parts');
@@ -130,6 +238,8 @@ class _InventoryPageState extends State<InventoryPage> {
     _ => Icons.pedal_bike_outlined,
   };
   Future<void> edit([Part? part]) async {
+    if (cloudBusy) return;
+    final baseline = {for (final p in parts) p.id: Part.fromJson(p.toJson())};
     final result = await showModalBottomSheet<Part>(
       context: context,
       isScrollControlled: true,
@@ -137,6 +247,12 @@ class _InventoryPageState extends State<InventoryPage> {
       builder: (_) => PartEditor(part: part, existingParts: parts),
     );
     if (result == null || !mounted) {
+      return;
+    }
+    if (widget.cloud != null) {
+      await cloudWrite(
+        () => widget.cloud!.savePart(result, expected: baseline[result.id]),
+      );
       return;
     }
     setState(() {
@@ -205,12 +321,17 @@ class _InventoryPageState extends State<InventoryPage> {
   }
 
   Future<void> adjust(Part part, StockSite site, int delta) async {
-    if (part.quantityAt(site) + delta < 0) return;
+    if (cloudBusy || part.quantityAt(site) + delta < 0) return;
+    if (widget.cloud != null) {
+      await cloudWrite(() => widget.cloud!.adjust(part.id, site, delta));
+      return;
+    }
     setState(() => part.adjustAt(site, delta));
     await save();
   }
 
   Future<void> transfer(Part part) async {
+    if (cloudBusy) return;
     var amount = '1';
     final form = GlobalKey<FormState>();
     var from = stockSite ?? StockSite.workshop;
@@ -285,6 +406,10 @@ class _InventoryPageState extends State<InventoryPage> {
     );
     final count = int.tryParse(amount);
     if (confirmed == true && mounted && count != null) {
+      if (widget.cloud != null) {
+        await cloudWrite(() => widget.cloud!.transfer(part.id, from, count));
+        return;
+      }
       setState(() => part.transfer(from, count));
       await save();
     }
@@ -337,6 +462,8 @@ class _InventoryPageState extends State<InventoryPage> {
   );
 
   Future<void> remove(Part part) async {
+    if (cloudBusy) return;
+    final expected = Part.fromJson(part.toJson());
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -355,6 +482,10 @@ class _InventoryPageState extends State<InventoryPage> {
       ),
     );
     if (confirmed == true && mounted) {
+      if (widget.cloud != null) {
+        await cloudWrite(() => widget.cloud!.deletePart(expected));
+        return;
+      }
       setState(() => parts.remove(part));
       await save();
     }
@@ -384,6 +515,45 @@ class _InventoryPageState extends State<InventoryPage> {
           style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -1),
         ),
         actions: [
+          if (widget.cloud != null)
+            PopupMenuButton<String>(
+              tooltip: 'Konto und Synchronisierung',
+              enabled: !cloudBusy,
+              icon: const Icon(Icons.account_circle_outlined),
+              onSelected: (value) async {
+                if (value == 'users') {
+                  await Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) => UsersPage(store: widget.cloud!),
+                    ),
+                  );
+                } else if (value == 'import') {
+                  try {
+                    await importLocal();
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(SnackBar(content: Text(cloudError(e))));
+                    }
+                  }
+                } else {
+                  await FirebaseAuth.instance.signOut();
+                }
+              },
+              itemBuilder: (_) => [
+                if (widget.admin)
+                  const PopupMenuItem(
+                    value: 'users',
+                    child: Text('Nutzer verwalten'),
+                  ),
+                if (widget.admin)
+                  const PopupMenuItem(
+                    value: 'import',
+                    child: Text('Lokalen Bestand übernehmen'),
+                  ),
+                const PopupMenuItem(value: 'logout', child: Text('Abmelden')),
+              ],
+            ),
           IconButton(
             tooltip: 'Product catalog',
             icon: const Icon(Icons.menu_book_outlined),
@@ -444,6 +614,31 @@ class _InventoryPageState extends State<InventoryPage> {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(20, 24, 20, 100),
                   children: [
+                    if (widget.cloud != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Row(
+                          children: [
+                            Icon(
+                              cloudBusy
+                                  ? Icons.sync
+                                  : fromCache
+                                  ? Icons.cloud_off_outlined
+                                  : Icons.cloud_done_outlined,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                cloudBusy
+                                    ? 'Änderung wird gespeichert…'
+                                    : fromCache
+                                    ? 'Verbindung wird hergestellt · Buchungen benötigen Internet'
+                                    : 'Gemeinsames Lager · Molenstraat',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     const Text(
                       'Ready for the next repair.',
                       style: TextStyle(
