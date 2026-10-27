@@ -36,7 +36,8 @@ Uint8List buildInventoryReport(List<Part> parts, DateTime generatedAt) {
     [
       'Part name',
       'Category',
-      'SKU / part number',
+      'Our product ID',
+      'Supplier order number',
       'Location',
       'Total quantity',
       'Minimum workshop',
@@ -54,7 +55,8 @@ Uint8List buildInventoryReport(List<Part> parts, DateTime generatedAt) {
     row([
       text(p.name),
       text(p.category),
-      text(p.sku),
+      text(p.productIdentification),
+      text(p.supplierOrderNumber),
       text(p.location),
       IntCellValue(p.totalQuantity),
       IntCellValue(p.minimum),
@@ -88,6 +90,7 @@ Uint8List buildInventoryReport(List<Part> parts, DateTime generatedAt) {
     44.0,
     22.0,
     24.0,
+    26.0,
     28.0,
     16.0,
     20.0,
@@ -98,7 +101,7 @@ Uint8List buildInventoryReport(List<Part> parts, DateTime generatedAt) {
     20.0,
     20.0,
   ];
-  sheet.setRowHeight(5, 32);
+  sheet.setRowHeight(5, 36);
   for (var c = 0; c < widths.length; c++) {
     sheet.setColumnWidth(c, widths[c]);
     sheet

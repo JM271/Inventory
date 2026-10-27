@@ -57,10 +57,10 @@ void main() {
       buildInventoryReport([p], DateTime.utc(2026)),
     )['Inventory'];
     expect(sheet.rows[3][3]!.value, IntCellValue(10));
-    expect(sheet.rows[6][4]!.value, IntCellValue(10));
-    expect(sheet.rows[6][7]!.value, IntCellValue(8));
-    expect(sheet.rows[6][8]!.value, IntCellValue(2));
-    expect(sheet.rows[6][9]!.value, IntCellValue(3));
+    expect(sheet.rows[6][5]!.value, IntCellValue(10));
+    expect(sheet.rows[6][8]!.value, IntCellValue(8));
+    expect(sheet.rows[6][9]!.value, IntCellValue(2));
+    expect(sheet.rows[6][10]!.value, IntCellValue(3));
   });
 
   testWidgets('transfer rejects excess stock and persists both sites', (

@@ -17,6 +17,8 @@ String _siteStatus(Part p, StockSite site) => p.lowAt(site)
     ? 'Nicht am Lager'
     : 'Am Lager';
 
+String _identifier(String value) => value.isEmpty ? 'nicht hinterlegt' : value;
+
 Future<Uint8List> buildInventoryPdf(
   List<Part> parts,
   DateTime generatedAt,
@@ -84,7 +86,7 @@ Future<Uint8List> buildInventoryPdf(
         if (parts.isNotEmpty)
           pw.TableHelper.fromTextArray(
             headers: [
-              'Artikel / SKU / Lagerplatz',
+              'Artikel / Kennungen / Lagerplatz',
               'Werkstatt',
               'Auto',
               'Gesamt',
@@ -93,7 +95,7 @@ Future<Uint8List> buildInventoryPdf(
               for (final p in sorted)
                 [
                   _pdfText(
-                    '${p.name}\n${p.sku} · ${p.category}\n${p.location}',
+                    '${p.name}\nUnsere Artikel-Nr.: ${_identifier(p.productIdentification)}\nLieferanten-Bestellnr.: ${_identifier(p.supplierOrderNumber)}\n${p.category} · ${p.location}',
                   ),
                   '${p.quantity} Stück · min. ${p.minimum}\n${_siteStatus(p, StockSite.workshop)}',
                   '${p.carQuantity} Stück · min. ${p.carMinimum}\n${_siteStatus(p, StockSite.car)}',

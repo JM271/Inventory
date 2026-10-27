@@ -45,21 +45,28 @@ void main() {
     await tester.tap(find.text('Save product'));
     await tester.pumpAndSettle();
     expect(find.text('Enter a product name'), findsOneWidget);
-    expect(find.text('Enter a SKU'), findsOneWidget);
+    expect(find.text('Enter our product ID'), findsOneWidget);
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Product name'),
       'Custom brake',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'SKU'),
-      'oxv8-01e',
+      find.widgetWithText(TextFormField, 'Our product ID'),
+      'ms-sp-3009',
     );
     await tester.tap(find.text('Save product'));
     await tester.pumpAndSettle();
-    expect(find.text('This SKU is already in the catalog'), findsOneWidget);
+    expect(
+      find.text('This product ID is already in the catalog'),
+      findsOneWidget,
+    );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'SKU'),
+      find.widgetWithText(TextFormField, 'Our product ID'),
       ' CUSTOM-001 ',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Supplier order number'),
+      ' 000987 ',
     );
     await tester.runAsync(() async {
       await tester.tap(find.text('Save product'));
@@ -69,8 +76,10 @@ void main() {
     final reloaded = await tester.runAsync(loadProductCatalog);
     final product = reloaded!.singleWhere((p) => p.sku == 'CUSTOM-001');
     expect(product.name, 'Custom brake');
+    expect(product.productIdentification, 'CUSTOM-001');
+    expect(product.orderNumber, '000987');
     expect(product.quantity, 0);
-    await tester.enterText(find.byType(TextField), 'CUSTOM-001');
+    await tester.enterText(find.byType(TextField), '000987');
     await tester.pumpAndSettle();
     await tester.tap(find.text('CUSTOM-001').last);
     await tester.pumpAndSettle();
@@ -104,7 +113,7 @@ void main() {
       rootBundle.evict('assets/product_catalog.json');
       return loadProductCatalog();
     }))!;
-    final replacement = products.firstWhere((p) => p.sku == 'OXV8-01E');
+    final replacement = products.firstWhere((p) => p.sku == 'OXV8-05');
     final original = Part(
       id: 'original',
       name: 'Original part',
@@ -157,7 +166,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), replacement.sku);
     await tester.pumpAndSettle();
-    await tester.tap(find.text(replacement.sku).last);
+    await tester.tap(find.text(replacement.productIdentification).last);
     await tester.pumpAndSettle();
     expect(
       find.widgetWithText(TextFormField, replacement.name),
@@ -168,6 +177,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(saved!.id, original.id);
     expect(saved!.sku, replacement.sku);
+    expect(saved!.productIdentification, 'MS-SP-3009');
+    expect(saved!.supplierOrderNumber, 'OXV8-05');
     expect(saved!.name, replacement.name);
     expect(saved!.category, replacement.category);
     expect(saved!.imageAsset, replacement.imageAsset);

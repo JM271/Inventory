@@ -11,10 +11,12 @@ service cloud.firestore {
     function admin() { return signedIn() && membership().role == 'admin'; }
     function validPart(data) {
       return data.keys().hasAll(['id', 'name', 'category', 'sku', 'imageAsset', 'location', 'quantity', 'minimum', 'carQuantity', 'carMinimum'])
-        && data.keys().hasOnly(['id', 'name', 'category', 'sku', 'imageAsset', 'location', 'quantity', 'minimum', 'carQuantity', 'carMinimum'])
+        && data.keys().hasOnly(['productNumber', 'orderNumber', 'id', 'name', 'category', 'sku', 'imageAsset', 'location', 'quantity', 'minimum', 'carQuantity', 'carMinimum'])
         && data.id is string && data.id.size() > 0 && data.id.size() <= 512
         && data.name is string && data.name.size() > 0 && data.name.size() <= 500
         && data.category is string && data.category.size() <= 100
+        && (!('orderNumber' in data) || (data.orderNumber is string && data.orderNumber.size() <= 200))
+        && (!('productNumber' in data) || (data.productNumber is string && data.productNumber.size() <= 200))
         && data.sku is string && data.sku.size() <= 200
         && data.imageAsset is string && data.imageAsset.size() <= 500
         && data.location is string && data.location.size() <= 500

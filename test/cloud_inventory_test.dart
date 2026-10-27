@@ -121,6 +121,43 @@ void main() {
     },
   );
 
+  for (final hasEmptyOrderNumber in [false, true]) {
+    test('import accepts equivalent legacy catalog without productNumber '
+        '(orderNumber ${hasEmptyOrderNumber ? 'empty' : 'absent'})', () async {
+      final legacy = Part(
+        id: 'legacy-custom-product',
+        name: '3 in 1 switch',
+        category: 'Electrics',
+        sku: 'OXV8-05',
+      ).toJson()..remove('productNumber');
+      if (hasEmptyOrderNumber) {
+        legacy['orderNumber'] = '';
+      } else {
+        legacy.remove('orderNumber');
+      }
+      final ref = first.catalog.doc(CloudInventory.documentId('oxv8-05'));
+      await ref.set(legacy);
+      final custom = Part.fromJson(legacy);
+      expect(custom.productIdentification, 'MS-SP-3009');
+      expect(custom.supplierOrderNumber, 'OXV8-05');
+
+      final conflicting = Part.fromJson(custom.toJson())
+        ..productNumber = 'DIFFERENT';
+      await expectLater(
+        first.importLocal([sample()], custom: [conflicting]),
+        throwsA(isA<InventoryConflict>()),
+      );
+      expect((await first.parts.get()).docs, isEmpty);
+      expect((await first.workshop.get()).exists, false);
+
+      await first.importLocal([sample()], custom: [custom]);
+      expect((await first.catalog.get()).docs, hasLength(1));
+      expect((await ref.get()).data(), legacy);
+      expect((await current()).totalQuantity, 6);
+      expect((await first.workshop.get()).data()?['initialized'], true);
+    });
+  }
+
   test('creating an existing ID is a conflict', () async {
     await first.savePart(sample());
     await expectLater(

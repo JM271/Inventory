@@ -41,23 +41,23 @@ void main() {
     final detail = {
       for (final row in rows.skip(6)) row[0]!.value.toString(): row,
     };
-    expect(detail['Car low']![10]!.value, TextCellValue('In stock'));
-    expect(detail['Car low']![11]!.value, TextCellValue('Low stock'));
-    expect(detail['Workshop low']![10]!.value, TextCellValue('Low stock'));
-    expect(detail['Workshop low']![11]!.value, TextCellValue('In stock'));
-    expect(detail['Car disabled']![6]!.value, TextCellValue('In stock'));
-    expect(detail['Empty']![6]!.value, TextCellValue('Out of stock'));
+    expect(detail['Car low']![11]!.value, TextCellValue('In stock'));
+    expect(detail['Car low']![12]!.value, TextCellValue('Low stock'));
+    expect(detail['Workshop low']![11]!.value, TextCellValue('Low stock'));
+    expect(detail['Workshop low']![12]!.value, TextCellValue('In stock'));
+    expect(detail['Car disabled']![7]!.value, TextCellValue('In stock'));
+    expect(detail['Empty']![7]!.value, TextCellValue('Out of stock'));
     for (final row in detail.values) {
-      final total = (row[4]!.value as IntCellValue).value;
+      final total = (row[5]!.value as IntCellValue).value;
       expect(
         total,
-        (row[7]!.value as IntCellValue).value +
-            (row[8]!.value as IntCellValue).value,
+        (row[8]!.value as IntCellValue).value +
+            (row[9]!.value as IntCellValue).value,
       );
     }
   });
 
-  test('long descriptions and leading-zero SKUs survive export', () {
+  test('long descriptions and leading-zero article numbers survive export', () {
     final name = List.filled(15, 'Long product description').join(' ');
     final book = Excel.decodeBytes(
       buildInventoryReport([
@@ -65,7 +65,9 @@ void main() {
           id: '1',
           name: name,
           category: 'Other',
-          sku: '001234',
+          sku: 'catalogue-reference',
+          productNumber: '001234',
+          orderNumber: '000987',
           location: '=Shelf A',
         ),
       ], DateTime.utc(2026)),
@@ -73,7 +75,8 @@ void main() {
     final sheet = book['Inventory'];
     expect(sheet.rows[6][0]!.value, TextCellValue(name));
     expect(sheet.rows[6][2]!.value, TextCellValue('001234'));
-    expect(sheet.rows[6][3]!.value, TextCellValue('=Shelf A'));
+    expect(sheet.rows[6][3]!.value, TextCellValue('000987'));
+    expect(sheet.rows[6][4]!.value, TextCellValue('=Shelf A'));
     expect(sheet.rows[6][0]!.cellStyle!.wrap, TextWrapping.WrapText);
     expect(sheet.getRowHeight(6), greaterThan(100));
   });

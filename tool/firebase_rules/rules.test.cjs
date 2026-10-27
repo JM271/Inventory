@@ -47,6 +47,10 @@ test('members edit valid stock but cannot grant membership', async () => {
   const db = client('editor');
   await assertSucceeds(getDocs(collection(db, `${root}/parts`)));
   await assertSucceeds(updateDoc(doc(db, `${root}/parts/chain`), { quantity: 2 }));
+  await assertSucceeds(updateDoc(doc(db, `${root}/parts/chain`), { orderNumber: '000987' }));
+  await assertFails(updateDoc(doc(db, `${root}/parts/chain`), { orderNumber: 987 }));
+  await assertSucceeds(updateDoc(doc(db, `${root}/parts/chain`), { productNumber: '00123' }));
+  await assertFails(updateDoc(doc(db, `${root}/parts/chain`), { productNumber: 123 }));
   await assertFails(updateDoc(doc(db, `${root}/parts/chain`), { quantity: -1 }));
   await assertFails(updateDoc(doc(db, `${root}/parts/chain`), { carQuantity: 1.5 }));
   await assertFails(updateDoc(doc(db, `${root}/parts/chain`), { id: 'different' }));

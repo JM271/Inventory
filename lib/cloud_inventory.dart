@@ -122,7 +122,11 @@ class CloudInventory {
           throw const InventoryConflict('Doppelte SKU im lokalen Katalog.');
         }
         final existing = await tx.get(catalog.doc(key));
-        if (existing.exists && !mapEquals(existing.data(), product.toJson())) {
+        if (existing.exists &&
+            !mapEquals(
+              Part.fromJson(existing.data()!).toJson(),
+              product.toJson(),
+            )) {
           throw const InventoryConflict(
             'Ein Katalogprodukt mit dieser SKU existiert bereits. Import abgebrochen.',
           );

@@ -16,14 +16,16 @@ import 'package:inventory/part.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => FlutterSecureStorage.setMockInitialValues({}));
-  test('Excel preserves SKU text, quantities and restocking status', () {
+  test('Excel places both article numbers together and preserves stock', () {
     final report = Excel.decodeBytes(
       buildInventoryReport([
         Part(
           id: '1',
           name: '=chain',
           category: 'Drivetrain',
-          sku: '00123',
+          sku: 'legacy-catalogue-key',
+          productNumber: '00123',
+          orderNumber: '00987',
           location: 'A / 2',
           quantity: 2,
           minimum: 2,
@@ -35,11 +37,50 @@ void main() {
     final rows = report['Inventory'].rows;
     expect(rows[3][3]!.value, IntCellValue(2));
     expect(rows[3][5]!.value, IntCellValue(2));
+    expect(rows[5][2]!.value, TextCellValue('Our product ID'));
+    expect(rows[5][3]!.value, TextCellValue('Supplier order number'));
     expect(rows[6][0]!.value, TextCellValue('=chain'));
     expect(rows[6][2]!.value, TextCellValue('00123'));
-    expect(rows[6][4]!.value, IntCellValue(2));
-    expect(rows[6][6]!.value, TextCellValue('Low stock'));
-    expect(rows[7][6]!.value, TextCellValue('Out of stock'));
+    expect(rows[6][3]!.value, TextCellValue('00987'));
+    expect(rows[6][5]!.value, IntCellValue(2));
+    expect(rows[6][7]!.value, TextCellValue('Low stock'));
+    expect(rows[7][7]!.value, TextCellValue('Out of stock'));
+  });
+  test('Excel resolves known legacy supplier codes without changing stock', () {
+    final part = Part(
+      id: 'existing-stock-id',
+      name: '3 in 1 switch',
+      category: 'Electrics',
+      sku: 'OXV8-05',
+      quantity: 4,
+      carQuantity: 3,
+      location: 'Shelf B',
+    );
+    final before = Map<String, dynamic>.of(part.toJson());
+    final rows = Excel.decodeBytes(
+      buildInventoryReport([part], DateTime.utc(2026, 10, 27)),
+    )['Inventory'].rows;
+    expect(rows[6][2]!.value, TextCellValue('MS-SP-3009'));
+    expect(rows[6][3]!.value, TextCellValue('OXV8-05'));
+    expect(rows[6][4]!.value, TextCellValue('Shelf B'));
+    expect(rows[6][5]!.value, IntCellValue(7));
+    expect(rows[6][8]!.value, IntCellValue(4));
+    expect(rows[6][9]!.value, IntCellValue(3));
+    expect(part.toJson(), before);
+  });
+  test('Excel leaves ambiguous internal article numbers unassigned', () {
+    final rows = Excel.decodeBytes(
+      buildInventoryReport([
+        Part(
+          id: 'existing-controller',
+          name: 'Controller',
+          category: 'Electrics',
+          sku: 'OXV8-02',
+        ),
+      ], DateTime.utc(2026, 10, 27)),
+    )['Inventory'].rows;
+    expect(rows[6][2]?.value?.toString() ?? '', isEmpty);
+    expect(rows[6][3]!.value, TextCellValue('OXV8-02'));
   });
   test('Empty inventory still produces a valid report', () {
     final sheet = Excel.decodeBytes(

@@ -19,6 +19,8 @@ List<Part> addTestStock(List<Part> existing, List<Part> catalog) {
           name: '${product.name} [TEST]',
           category: product.category,
           sku: product.sku,
+          productNumber: product.productIdentification,
+          orderNumber: product.supplierOrderNumber,
           imageAsset: product.imageAsset,
           location: 'TEST · Demo shelf',
           quantity: quantities[product.sku]!,

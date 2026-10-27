@@ -499,9 +499,9 @@ class _InventoryPageState extends State<InventoryPage> {
               (p) =>
                   (!lowOnly || visibleLow(p)) &&
                   (category == 'All parts' || p.category == category) &&
-                  '${p.name} ${p.sku} ${p.location}'.toLowerCase().contains(
-                    query.toLowerCase(),
-                  ),
+                  '${p.name} ${p.productIdentification} ${p.supplierOrderNumber} ${p.location}'
+                      .toLowerCase()
+                      .contains(query.toLowerCase()),
             )
             .toList()
           ..sort(
@@ -702,7 +702,7 @@ class _InventoryPageState extends State<InventoryPage> {
                     TextField(
                       onChanged: (v) => setState(() => query = v),
                       decoration: const InputDecoration(
-                        hintText: 'Search parts, SKU or location',
+                        hintText: 'Search parts, either number or location',
                         prefixIcon: Icon(Icons.search),
                       ),
                     ),
@@ -830,7 +830,10 @@ class _InventoryPageState extends State<InventoryPage> {
                                 subtitle: Text(
                                   [
                                     p.category,
-                                    if (p.sku.isNotEmpty) p.sku,
+                                    if (p.productIdentification.isNotEmpty)
+                                      'Product ID: ${p.productIdentification}',
+                                    if (p.supplierOrderNumber.isNotEmpty)
+                                      'Order no.: ${p.supplierOrderNumber}',
                                     if (p.location.isNotEmpty) p.location,
                                   ].join(' · '),
                                 ),
@@ -918,7 +921,8 @@ class PartEditor extends StatefulWidget {
 class _PartEditorState extends State<PartEditor> {
   final form = GlobalKey<FormState>();
   late final TextEditingController name,
-      sku,
+      productNumber,
+      orderNumber,
       location,
       quantity,
       minimum,
@@ -932,7 +936,8 @@ class _PartEditorState extends State<PartEditor> {
     super.initState();
     final p = widget.part;
     name = TextEditingController(text: p?.name);
-    sku = TextEditingController(text: p?.sku);
+    productNumber = TextEditingController(text: p?.productIdentification);
+    orderNumber = TextEditingController(text: p?.supplierOrderNumber);
     location = TextEditingController(text: p?.location);
     quantity = TextEditingController(text: '${p?.quantity ?? 0}');
     minimum = TextEditingController(text: '${p?.minimum ?? 2}');
@@ -958,7 +963,8 @@ class _PartEditorState extends State<PartEditor> {
               ..imageAsset = selected.imageAsset);
       editingExisting = existing != null;
       name.text = catalogPart!.name;
-      sku.text = catalogPart!.sku;
+      productNumber.text = catalogPart!.productIdentification;
+      orderNumber.text = catalogPart!.supplierOrderNumber;
       category = catalogPart!.category;
       if (existing != null) {
         quantity.text = '${existing.quantity}';
@@ -974,7 +980,8 @@ class _PartEditorState extends State<PartEditor> {
   void dispose() {
     for (final c in [
       name,
-      sku,
+      productNumber,
+      orderNumber,
       location,
       quantity,
       minimum,
@@ -1076,7 +1083,8 @@ class _PartEditorState extends State<PartEditor> {
               onChanged: (v) => category = v!,
             ),
             const SizedBox(height: 16),
-            field('SKU / part number', sku),
+            field('Our product ID', productNumber),
+            field('Supplier order number', orderNumber),
             field('Location (e.g. Shelf A · Bin 3)', location),
             const Text(
               'Werkstatt',
@@ -1120,7 +1128,12 @@ class _PartEditorState extends State<PartEditor> {
                           DateTime.now().microsecondsSinceEpoch.toString(),
                       name: name.text.trim(),
                       category: category,
-                      sku: sku.text.trim(),
+                      sku:
+                          catalogPart?.sku ??
+                          widget.part?.sku ??
+                          productNumber.text.trim(),
+                      productNumber: productNumber.text.trim(),
+                      orderNumber: orderNumber.text.trim(),
                       imageAsset:
                           (catalogPart ?? widget.part)?.imageAsset ?? '',
                       location: location.text.trim(),

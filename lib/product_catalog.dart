@@ -36,6 +36,8 @@ Future<List<Part>> loadProductCatalog({CloudInventory? cloud}) async {
           name: row['name'],
           category: row['category'],
           sku: row['sku'],
+          productNumber: row['productNumber'] as String?,
+          orderNumber: row['orderNumber'] as String?,
           imageAsset: row['imageAsset'],
         ),
       )
@@ -140,7 +142,7 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
           padding: const EdgeInsets.all(16),
           child: TextField(
             decoration: const InputDecoration(
-              labelText: 'Search product or SKU',
+              labelText: 'Search product or either number',
               prefixIcon: Icon(Icons.search),
             ),
             onChanged: (value) => setState(() => query = value.toLowerCase()),
@@ -162,9 +164,10 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
               }
               final products = snapshot.data!
                   .where(
-                    (p) => '${p.name} ${p.sku} ${p.category}'
-                        .toLowerCase()
-                        .contains(query),
+                    (p) =>
+                        '${p.name} ${p.productIdentification} ${p.supplierOrderNumber} ${p.category}'
+                            .toLowerCase()
+                            .contains(query),
                   )
                   .toList();
               if (products.isEmpty) {
@@ -178,10 +181,18 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                   return ListTile(
                     leading: ProductPhoto(part: p),
                     title: Text(
-                      p.sku,
+                      p.productIdentification.isEmpty
+                          ? p.supplierOrderNumber
+                          : p.productIdentification,
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    subtitle: Text(p.name),
+                    subtitle: Text(
+                      [
+                        p.name,
+                        if (p.supplierOrderNumber.isNotEmpty)
+                          'Order no.: ${p.supplierOrderNumber}',
+                      ].join('\n'),
+                    ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => Navigator.pop(context, p),
                   );
@@ -207,14 +218,16 @@ class _NewProductPage extends StatefulWidget {
 class _NewProductPageState extends State<_NewProductPage> {
   final form = GlobalKey<FormState>();
   final name = TextEditingController();
-  final sku = TextEditingController();
+  final productNumber = TextEditingController();
+  final orderNumber = TextEditingController();
   String category = categories.first;
   bool saving = false;
 
   @override
   void dispose() {
     name.dispose();
-    sku.dispose();
+    productNumber.dispose();
+    orderNumber.dispose();
     super.dispose();
   }
 
@@ -225,7 +238,9 @@ class _NewProductPageState extends State<_NewProductPage> {
       final product = Part(
         id: 'custom-${DateTime.now().microsecondsSinceEpoch}',
         name: name.text.trim(),
-        sku: sku.text.trim(),
+        sku: productNumber.text.trim(),
+        productNumber: productNumber.text.trim(),
+        orderNumber: orderNumber.text.trim(),
         category: category,
       );
       if (widget.cloud != null) {
@@ -272,18 +287,28 @@ class _NewProductPageState extends State<_NewProductPage> {
           ),
           const SizedBox(height: 16),
           TextFormField(
-            controller: sku,
-            decoration: const InputDecoration(labelText: 'SKU'),
+            controller: productNumber,
+            decoration: const InputDecoration(labelText: 'Our product ID'),
             validator: (value) {
               final code = value?.trim() ?? '';
-              if (code.isEmpty) return 'Enter a SKU';
+              if (code.isEmpty) return 'Enter our product ID';
               if (widget.products.any(
-                (p) => p.sku.toLowerCase() == code.toLowerCase(),
+                (p) =>
+                    p.productIdentification.toLowerCase() ==
+                        code.toLowerCase() ||
+                    p.sku.toLowerCase() == code.toLowerCase(),
               )) {
-                return 'This SKU is already in the catalog';
+                return 'This product ID is already in the catalog';
               }
               return null;
             },
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: orderNumber,
+            decoration: const InputDecoration(
+              labelText: 'Supplier order number',
+            ),
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
