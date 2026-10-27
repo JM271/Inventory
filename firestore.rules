@@ -56,6 +56,22 @@ service cloud.firestore {
           && request.resource.data.id == resource.data.id;
         allow delete: if member();
       }
+      match /stockChanges/{changeId} {
+        allow read: if member();
+        allow create: if member()
+          && request.resource.data.keys().hasOnly(['partId', 'name', 'productNumber', 'action', 'beforeWorkshop', 'afterWorkshop', 'beforeCar', 'afterCar', 'uid', 'createdAt'])
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.partId is string
+          && request.resource.data.name is string
+          && request.resource.data.productNumber is string
+          && request.resource.data.action in ['Added', 'Edited', 'Adjusted', 'Transferred', 'Deleted', 'Imported']
+          && request.resource.data.beforeWorkshop is int && request.resource.data.beforeWorkshop >= 0
+          && request.resource.data.afterWorkshop is int && request.resource.data.afterWorkshop >= 0
+          && request.resource.data.beforeCar is int && request.resource.data.beforeCar >= 0
+          && request.resource.data.afterCar is int && request.resource.data.afterCar >= 0;
+        allow update, delete: if false;
+      }
       match /catalog/{sku} {
         allow read: if member();
         allow create: if member() && validPart(request.resource.data)

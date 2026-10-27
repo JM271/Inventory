@@ -27,6 +27,38 @@ void main() {
   );
 
   test(
+    'history preserves quantities and actor, and failed writes add nothing',
+    () async {
+      await first.savePart(sample());
+      await second.transfer(sample().id, StockSite.workshop, 2);
+      var history = (await first.changes.get()).docs
+          .map((d) => d.data())
+          .toList();
+      final transfer = history.singleWhere((c) => c['action'] == 'Transferred');
+      expect(transfer['uid'], 'bob');
+      expect(transfer['beforeWorkshop'], 5);
+      expect(transfer['afterWorkshop'], 3);
+      expect(transfer['beforeCar'], 1);
+      expect(transfer['afterCar'], 3);
+      await expectLater(
+        first.adjust(sample().id, StockSite.workshop, -99),
+        throwsArgumentError,
+      );
+      expect((await first.changes.get()).docs.length, 2);
+      final unchanged = await current();
+      unchanged.name = 'Renamed chain';
+      await first.savePart(unchanged, expected: await current());
+      expect((await first.changes.get()).docs.length, 2);
+      await first.deletePart(await current());
+      history = (await first.changes.get()).docs.map((d) => d.data()).toList();
+      expect(
+        history.singleWhere((c) => c['action'] == 'Deleted')['beforeWorkshop'],
+        3,
+      );
+    },
+  );
+
+  test(
     'two clients read the same stock and deltas use latest quantity',
     () async {
       await first.savePart(sample());

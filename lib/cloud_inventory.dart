@@ -37,6 +37,31 @@ class CloudInventory {
   CollectionReference<Map<String, dynamic>> get members =>
       workshop.collection('members');
 
+  CollectionReference<Map<String, dynamic>> get changes =>
+      workshop.collection('stockChanges');
+
+  void recordChange(Transaction tx, Part? before, Part? after, String action) {
+    if (before != null &&
+        after != null &&
+        before.quantity == after.quantity &&
+        before.carQuantity == after.carQuantity) {
+      return;
+    }
+    final part = after ?? before!;
+    tx.set(changes.doc(), {
+      'partId': part.id,
+      'name': part.name,
+      'productNumber': part.productIdentification,
+      'action': action,
+      'beforeWorkshop': before?.quantity ?? 0,
+      'afterWorkshop': after?.quantity ?? 0,
+      'beforeCar': before?.carQuantity ?? 0,
+      'afterCar': after?.carQuantity ?? 0,
+      'uid': uid,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   // Encoding keeps legacy IDs (including SKU slashes) safe as document IDs.
   static String documentId(String id) =>
       base64Url.encode(utf8.encode(id)).replaceAll('=', '');
@@ -53,6 +78,7 @@ class CloudInventory {
         snapshot.exists ? Part.fromJson(snapshot.data()!) : null,
         expected,
       );
+      recordChange(tx, expected, next, expected == null ? 'Added' : 'Edited');
       tx.set(ref, next.toJson());
       if (state.data()?['initialized'] != true) {
         tx.set(workshop, {'initialized': true});
@@ -61,12 +87,16 @@ class CloudInventory {
   }
 
   Future<void> adjust(String id, StockSite site, int delta) =>
-      _change(id, (part) => part.adjustAt(site, delta));
+      _change(id, (part) => part.adjustAt(site, delta), 'Adjusted');
 
   Future<void> transfer(String id, StockSite from, int amount) =>
-      _change(id, (part) => part.transfer(from, amount));
+      _change(id, (part) => part.transfer(from, amount), 'Transferred');
 
-  Future<void> _change(String id, void Function(Part) apply) async {
+  Future<void> _change(
+    String id,
+    void Function(Part) apply,
+    String action,
+  ) async {
     final ref = parts.doc(documentId(id));
     await db.runTransaction((tx) async {
       final snapshot = await tx.get(ref);
@@ -74,7 +104,9 @@ class CloudInventory {
         throw const InventoryConflict('Der Artikel wurde inzwischen gelöscht.');
       }
       final current = Part.fromJson(snapshot.data()!);
+      final before = Part.fromJson(current.toJson());
       apply(current);
+      recordChange(tx, before, current, action);
       tx.set(ref, current.toJson());
     });
   }
@@ -87,6 +119,7 @@ class CloudInventory {
         snapshot.exists ? Part.fromJson(snapshot.data()!) : null,
         expected,
       );
+      recordChange(tx, expected, null, 'Deleted');
       tx.delete(ref);
     });
   }
@@ -98,9 +131,9 @@ class CloudInventory {
     List<Part> custom = const [],
   }) async {
     if (local.length + custom.length == 0 ||
-        local.length + custom.length > 400) {
+        local.length * 2 + custom.length > 400) {
       throw const InventoryConflict(
-        'Import benötigt 1 bis 400 Lager- und Katalogartikel. Bei größeren Lagern bitte zuerst die Datenübernahme vorbereiten.',
+        'Import benötigt mindestens einen Artikel und erlaubt maximal 400 Schreibvorgänge (zwei pro Lagerartikel inklusive Verlauf, einen pro Katalogartikel). Bei größeren Lagern bitte zuerst die Datenübernahme vorbereiten.',
       );
     }
     if (local.map((p) => p.id).toSet().length != local.length) {
@@ -134,6 +167,7 @@ class CloudInventory {
         existingCustom[key] = existing.exists;
       }
       for (final part in local) {
+        recordChange(tx, null, part, 'Imported');
         tx.set(parts.doc(documentId(part.id)), part.toJson());
       }
       for (final product in custom) {

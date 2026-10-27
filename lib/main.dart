@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'cloud_inventory.dart';
+import 'stock_changes_page.dart';
 import 'firebase_gate.dart';
 
 import 'dart:convert';
@@ -207,12 +208,49 @@ class _InventoryPageState extends State<InventoryPage> {
 
   Future<void> save() async {
     try {
+      final previous = (jsonDecode(
+        prefs!.getString('workshop_parts') ?? '[]',
+      ) as List).map((j) => Part.fromJson(j)).toList();
+      final history =
+          (jsonDecode(prefs!.getString('stock_changes_v1') ?? '[]') as List);
+      final before = {for (final p in previous) p.id: p};
+      final after = {for (final p in parts) p.id: p};
+      final additions = <Map<String, dynamic>>[];
+      for (final id in {...before.keys, ...after.keys}) {
+        final old = before[id], next = after[id];
+        if (old != null &&
+            next != null &&
+            old.quantity == next.quantity &&
+            old.carQuantity == next.carQuantity) {
+          continue;
+        }
+        final p = next ?? old!;
+        additions.add({
+          'name': p.name,
+          'productNumber': p.productIdentification,
+          'action': old == null
+              ? 'Added'
+              : next == null
+              ? 'Deleted'
+              : 'Changed',
+          'beforeWorkshop': old?.quantity ?? 0,
+          'afterWorkshop': next?.quantity ?? 0,
+          'beforeCar': old?.carQuantity ?? 0,
+          'afterCar': next?.carQuantity ?? 0,
+          'uid': 'This device',
+          'createdAt': DateTime.now().toUtc().toIso8601String(),
+        });
+      }
       final saved = await prefs!.setString(
         'workshop_parts',
         jsonEncode(parts.map((p) => p.toJson()).toList()),
       );
-      if (!saved) {
-        throw StateError('Save failed');
+      if (!saved) throw StateError('Save failed');
+      if (!await prefs!.setString(
+        'stock_changes_v1',
+        jsonEncode([...additions.reversed, ...history].take(200).toList()),
+      )) {
+        throw StateError('History save failed');
       }
     } catch (_) {
       if (mounted) {
@@ -614,6 +652,19 @@ class _InventoryPageState extends State<InventoryPage> {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(20, 24, 20, 100),
                   children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.history),
+                        label: const Text('Letzte Bestandsänderungen'),
+                        onPressed: () => Navigator.of(context).push<void>(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                StockChangesPage(cloud: widget.cloud),
+                          ),
+                        ),
+                      ),
+                    ),
                     if (widget.cloud != null)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 16),

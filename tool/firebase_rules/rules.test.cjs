@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { initializeTestEnvironment, assertSucceeds, assertFails } = require('@firebase/rules-unit-testing');
-const { doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc, runTransaction, writeBatch } = require('firebase/firestore');
+const { doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc, runTransaction, writeBatch, serverTimestamp } = require('firebase/firestore');
 
 let env;
 const root = 'workshops/molenstraat';
@@ -100,4 +100,17 @@ test('simultaneous transactions cannot remove more than available stock', async 
   const results = await Promise.allSettled([book(client('admin')), book(client('editor'))]);
   assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
   assert.equal((await getDoc(doc(client('admin'), `${root}/parts/chain`))).data().quantity, 0);
+});
+
+
+test('stock history is member-only, attributed and immutable', async () => {
+  const db = client('editor');
+  const ref = doc(db, `${root}/stockChanges/change`);
+  const change = { partId: 'chain', name: 'Chain', productNumber: 'CHAIN', action: 'Adjusted', beforeWorkshop: 1, afterWorkshop: 2, beforeCar: 0, afterCar: 0, uid: 'editor', createdAt: serverTimestamp() };
+  await assertFails(setDoc(ref, { ...change, uid: 'admin' }));
+  await assertSucceeds(setDoc(ref, change));
+  await assertSucceeds(getDocs(collection(db, `${root}/stockChanges`)));
+  await assertFails(getDocs(collection(client('pending'), `${root}/stockChanges`)));
+  await assertFails(updateDoc(ref, { afterWorkshop: 99 }));
+  await assertFails(deleteDoc(ref));
 });
