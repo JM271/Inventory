@@ -88,6 +88,19 @@ Die Android-Konfiguration wurde mit der gelieferten `google-services.json`
 abgeglichen. Die iOS-Konfiguration fehlt noch. iOS-Builds benötigen zusätzlich
 CocoaPods und die iOS-Werkzeuge.
 
+## Angebots-App (Molenstraat Angebote)
+
+Die Angebots-App (`molenstraat_offers`) nutzt dasselbe Projekt, dieselben
+Konten und dieselbe Freigabe. Mitarbeiter und Admins können Angebote erstellen;
+den Lagerbestand liest sie nur. Ihre Daten liegen unter `workshops/molenstraat`
+in `offers`, `offerCounters`, `offerConfig` und `partPrices`.
+
+Die Regeln dafür stehen in dieser [`firestore.rules`](firestore.rules), weil
+ein Projekt nur einen Regelsatz hat. **Regeln immer aus einer Version mit dem
+Abschnitt „Molenstraat Angebote“ veröffentlichen**, sonst verliert die
+Angebots-App den Zugriff. Die Emulator-Tests in `tool/firebase_rules` decken
+beide Apps ab.
+
 ## Web veröffentlichen
 
 Firebase CLI installieren und auf dem eigenen Rechner mit `firebase login`

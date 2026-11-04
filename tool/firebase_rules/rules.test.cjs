@@ -114,3 +114,60 @@ test('stock history is member-only, attributed and immutable', async () => {
   await assertFails(updateDoc(ref, { afterWorkshop: 99 }));
   await assertFails(deleteDoc(ref));
 });
+
+const offer = (uid, extra = {}) => ({
+  id: 'o1', number: 'A-2026-001', createdAt: '2026-11-04T10:00:00.000', validUntil: '2026-12-04T00:00:00.000',
+  status: 'draft', customerName: 'Anna Muster', customerPhone: '', customerEmail: '', bikeModel: 'V8',
+  frameNumber: '', problem: '', notes: '',
+  lines: [{ kind: 'part', description: 'Chain', quantity: 1, unitPriceCents: 2490, sku: 'OXV8-30' }],
+  updatedAt: serverTimestamp(), updatedBy: uid, ...extra,
+});
+
+test('offers are member-only and attributed to the writer', async () => {
+  const db = client('editor');
+  const ref = doc(db, `${root}/offers/o1`);
+  await assertFails(setDoc(doc(client('pending'), `${root}/offers/o1`), offer('pending')));
+  await assertFails(setDoc(ref, offer('admin')));
+  await assertFails(setDoc(ref, { ...offer('editor'), updatedAt: '2026-11-04' }));
+  await assertFails(setDoc(doc(db, `${root}/offers/other`), offer('editor')));
+  await assertFails(setDoc(ref, offer('editor', { status: 'paid' })));
+  await assertFails(setDoc(ref, offer('editor', { number: 'X-1' })));
+  await assertFails(setDoc(ref, offer('editor', { role: 'admin' })));
+  await assertSucceeds(setDoc(ref, offer('editor')));
+  await assertSucceeds(setDoc(doc(client('admin'), `${root}/offers/o1`), offer('admin', { status: 'sent' })));
+  await assertSucceeds(getDocs(collection(db, `${root}/offers`)));
+  await assertFails(getDocs(collection(client('pending'), `${root}/offers`)));
+  await assertSucceeds(deleteDoc(ref));
+});
+
+test('offer numbers only increase', async () => {
+  const db = client('editor');
+  const ref = doc(db, `${root}/offerCounters/2026`);
+  await assertFails(setDoc(doc(db, `${root}/offerCounters/abc`), { last: 1 }));
+  await assertFails(setDoc(doc(client('pending'), `${root}/offerCounters/2026`), { last: 1 }));
+  await assertSucceeds(setDoc(ref, { last: 1 }));
+  await assertSucceeds(setDoc(ref, { last: 2 }));
+  await assertFails(setDoc(ref, { last: 1 }));
+  await assertFails(setDoc(ref, { last: 3, reset: true }));
+  await assertFails(deleteDoc(ref));
+});
+
+test('offer settings, price list and part prices are validated', async () => {
+  const db = client('editor');
+  const settings = doc(db, `${root}/offerConfig/settings`);
+  await assertSucceeds(setDoc(settings, { companyName: 'Molenstraat Fatbikes', hourlyRateCents: 9000, vatRate: 8.1, pricesIncludeVat: true, validityDays: 30, currency: 'CHF' }));
+  await assertSucceeds(setDoc(settings, { vatRate: 8 }));
+  await assertFails(setDoc(settings, { hourlyRateCents: -1 }));
+  await assertFails(setDoc(settings, { hourlyRateCents: 90.5 }));
+  await assertFails(setDoc(settings, { admin: true }));
+  await assertFails(setDoc(doc(db, `${root}/offerConfig/other`), { items: [] }));
+  await assertFails(getDoc(doc(client('pending'), `${root}/offerConfig/settings`)));
+  await assertSucceeds(setDoc(doc(db, `${root}/offerConfig/presets`), { items: [{ id: 'p', name: 'Service' }] }));
+  await assertFails(setDoc(doc(db, `${root}/offerConfig/presets`), { items: 'none' }));
+  const price = doc(db, `${root}/partPrices/T1hWOC0zMA`);
+  await assertSucceeds(setDoc(price, { sku: 'OXV8-30', priceCents: 1990 }));
+  await assertFails(setDoc(price, { sku: 'OXV8-30', priceCents: 0 }));
+  await assertFails(setDoc(price, { sku: 'OXV8-30', priceCents: 19.9 }));
+  await assertFails(getDocs(collection(client('pending'), `${root}/partPrices`)));
+  await assertSucceeds(deleteDoc(price));
+});

@@ -25,6 +25,32 @@ service cloud.firestore {
         && data.carQuantity is int && data.carQuantity >= 0
         && data.carMinimum is int && data.carMinimum >= 0;
     }
+    // --- Molenstraat Angebote (repair offers app) ---
+    function text(value, max) { return value is string && value.size() <= max; }
+    function validOffer(id, data) {
+      return data.keys().hasOnly(['id', 'number', 'createdAt', 'validUntil', 'status', 'customerName', 'customerPhone', 'customerEmail', 'bikeModel', 'frameNumber', 'problem', 'notes', 'lines', 'updatedAt', 'updatedBy'])
+        && data.keys().hasAll(['id', 'number', 'createdAt', 'validUntil', 'status', 'lines', 'updatedAt', 'updatedBy'])
+        && data.id == id
+        && data.number is string && data.number.matches('A-[0-9]{4}-[0-9]{3,6}')
+        && text(data.createdAt, 40) && text(data.validUntil, 40)
+        && data.status in ['draft', 'sent', 'accepted', 'declined']
+        && text(data.get('customerName', ''), 200) && text(data.get('customerPhone', ''), 100)
+        && text(data.get('customerEmail', ''), 200) && text(data.get('bikeModel', ''), 200)
+        && text(data.get('frameNumber', ''), 100) && text(data.get('problem', ''), 5000)
+        && text(data.get('notes', ''), 5000)
+        && data.lines is list && data.lines.size() <= 200
+        && data.updatedAt == request.time && data.updatedBy == request.auth.uid;
+    }
+    function validOfferSettings(data) {
+      return data.keys().hasOnly(['companyName', 'address', 'phone', 'email', 'hourlyRateCents', 'vatRate', 'pricesIncludeVat', 'validityDays', 'currency', 'footer'])
+        && text(data.get('companyName', ''), 200) && text(data.get('address', ''), 1000)
+        && text(data.get('phone', ''), 100) && text(data.get('email', ''), 200)
+        && data.get('hourlyRateCents', 0) is int && data.get('hourlyRateCents', 0) >= 0
+        && data.get('vatRate', 0) is number && data.get('vatRate', 0) >= 0 && data.get('vatRate', 0) <= 100
+        && data.get('pricesIncludeVat', true) is bool
+        && data.get('validityDays', 30) is int && data.get('validityDays', 30) >= 0
+        && text(data.get('currency', ''), 10) && text(data.get('footer', ''), 2000);
+    }
     match /users/{uid} {
       allow get: if signedIn() && (request.auth.uid == uid || admin());
       allow list: if admin();
@@ -77,6 +103,45 @@ service cloud.firestore {
         allow create: if member() && validPart(request.resource.data)
           && request.resource.data.sku.size() > 0;
         allow update, delete: if false;
+      }
+      // Offers, their settings and price list are shared by all members.
+      match /offers/{offerId} {
+        allow read: if member();
+        allow create, update: if member() && validOffer(offerId, request.resource.data);
+        allow delete: if member();
+      }
+      // Offer numbers per year (A-2026-001 …) only ever increase.
+      match /offerCounters/{year} {
+        allow read: if member();
+        allow create: if member() && year.matches('20[0-9]{2}')
+          && request.resource.data.keys().hasOnly(['last'])
+          && request.resource.data.last is int && request.resource.data.last >= 1;
+        allow update: if member()
+          && request.resource.data.keys().hasOnly(['last'])
+          && request.resource.data.last is int
+          && request.resource.data.last >= resource.data.last;
+        allow delete: if false;
+      }
+      match /offerConfig/settings {
+        allow read: if member();
+        allow create, update: if member() && validOfferSettings(request.resource.data);
+        allow delete: if false;
+      }
+      match /offerConfig/presets {
+        allow read: if member();
+        allow create, update: if member()
+          && request.resource.data.keys().hasOnly(['items'])
+          && request.resource.data.items is list && request.resource.data.items.size() <= 500;
+        allow delete: if false;
+      }
+      // Own sales price per catalogue SKU, overriding the catalogue price.
+      match /partPrices/{key} {
+        allow read: if member();
+        allow create, update: if member()
+          && request.resource.data.keys().hasOnly(['sku', 'priceCents'])
+          && text(request.resource.data.sku, 200) && request.resource.data.sku.size() > 0
+          && request.resource.data.priceCents is int && request.resource.data.priceCents > 0;
+        allow delete: if member();
       }
     }
     match /{document=**} { allow read, write: if false; }
