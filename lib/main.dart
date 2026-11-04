@@ -854,6 +854,23 @@ class _InventoryPageState extends State<InventoryPage> {
                         ),
                         child: Column(
                           children: [
+                            if (p.imageAsset.isNotEmpty)
+                              GestureDetector(
+                                onTap: () => edit(p),
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    16,
+                                    16,
+                                    0,
+                                  ),
+                                  child: ProductPhoto(
+                                    part: p,
+                                    size: double.infinity,
+                                    height: 320,
+                                  ),
+                                ),
+                              ),
                             Material(
                               color: Colors.transparent,
                               child: ListTile(
@@ -864,7 +881,7 @@ class _InventoryPageState extends State<InventoryPage> {
                                   0,
                                 ),
                                 leading: p.imageAsset.isNotEmpty
-                                    ? ProductPhoto(part: p)
+                                    ? null
                                     : CircleAvatar(
                                         backgroundColor: const Color(
                                           0xFFEAF0E9,

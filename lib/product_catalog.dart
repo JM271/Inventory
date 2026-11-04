@@ -52,13 +52,19 @@ Future<List<Part>> loadProductCatalog({CloudInventory? cloud}) async {
 }
 
 class ProductPhoto extends StatelessWidget {
-  const ProductPhoto({super.key, required this.part, this.size = 64});
+  const ProductPhoto({
+    super.key,
+    required this.part,
+    this.size = 64,
+    this.height,
+  });
   final Part part;
   final double size;
+  final double? height;
   @override
   Widget build(BuildContext context) => SizedBox(
     width: size,
-    height: size,
+    height: height ?? size,
     child: part.imageAsset.isEmpty
         ? const Icon(Icons.inventory_2_outlined)
         : Image.asset(
@@ -185,34 +191,43 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                         horizontal: 16,
                         vertical: 12,
                       ),
-                      child: Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          ProductPhoto(part: p, size: 144),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  p.productIdentification.isEmpty
-                                      ? p.supplierOrderNumber
-                                      : p.productIdentification,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  [
-                                    p.name,
-                                    if (p.supplierOrderNumber.isNotEmpty)
-                                      'Order no.: ${p.supplierOrderNumber}',
-                                  ].join('\n'),
-                                ),
-                              ],
-                            ),
+                          ProductPhoto(
+                            part: p,
+                            size: double.infinity,
+                            height: 320,
                           ),
-                          const Icon(Icons.chevron_right),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      p.productIdentification.isEmpty
+                                          ? p.supplierOrderNumber
+                                          : p.productIdentification,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      [
+                                        p.name,
+                                        if (p.supplierOrderNumber.isNotEmpty)
+                                          'Order no.: ${p.supplierOrderNumber}',
+                                      ].join('\n'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.chevron_right),
+                            ],
+                          ),
                         ],
                       ),
                     ),
