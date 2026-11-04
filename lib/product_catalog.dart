@@ -178,23 +178,44 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                 itemCount: products.length,
                 itemBuilder: (context, index) {
                   final p = products[index];
-                  return ListTile(
-                    leading: ProductPhoto(part: p),
-                    title: Text(
-                      p.productIdentification.isEmpty
-                          ? p.supplierOrderNumber
-                          : p.productIdentification,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(
-                      [
-                        p.name,
-                        if (p.supplierOrderNumber.isNotEmpty)
-                          'Order no.: ${p.supplierOrderNumber}',
-                      ].join('\n'),
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
+                  return InkWell(
                     onTap: () => Navigator.pop(context, p),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        children: [
+                          ProductPhoto(part: p, size: 144),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  p.productIdentification.isEmpty
+                                      ? p.supplierOrderNumber
+                                      : p.productIdentification,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  [
+                                    p.name,
+                                    if (p.supplierOrderNumber.isNotEmpty)
+                                      'Order no.: ${p.supplierOrderNumber}',
+                                  ].join('\n'),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right),
+                        ],
+                      ),
+                    ),
                   );
                 },
               );
