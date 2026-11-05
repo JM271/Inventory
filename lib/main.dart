@@ -86,6 +86,13 @@ class _InventoryPageState extends State<InventoryPage> {
   int visibleQuantity(Part p) =>
       stockSite == null ? p.totalQuantity : p.quantityAt(stockSite!);
   bool visibleLow(Part p) => stockSite == null ? p.low : p.lowAt(stockSite!);
+
+  /// With a site selected, only parts kept there: in stock at that site or
+  /// with a minimum for it (so parts to restock there still show).
+  bool atSite(Part p) =>
+      stockSite == null ||
+      p.quantityAt(stockSite!) > 0 ||
+      p.minimumAt(stockSite!) > 0;
   bool lowOnly = false, loading = true, exportingReport = false;
   SharedPreferences? prefs;
   StreamSubscription<dynamic>? cloudSubscription;
@@ -543,6 +550,7 @@ class _InventoryPageState extends State<InventoryPage> {
         parts
             .where(
               (p) =>
+                  atSite(p) &&
                   (!lowOnly || visibleLow(p)) &&
                   (category == 'All parts' || p.category == category) &&
                   '${p.name} ${p.productIdentification} ${p.supplierOrderNumber} ${p.location}'
@@ -736,7 +744,10 @@ class _InventoryPageState extends State<InventoryPage> {
                       child: Row(
                         children: [
                           Expanded(
-                            child: metric('${parts.length}', 'Part types'),
+                            child: metric(
+                              '${parts.where(atSite).length}',
+                              'Part types',
+                            ),
                           ),
                           Expanded(
                             child: metric(

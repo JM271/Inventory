@@ -79,15 +79,23 @@ void main() {
           category: 'Drivetrain',
           quantity: 8,
         ).toJson(),
+        // Only in the workshop, without a minimum for the car.
+        Part(
+          id: '2',
+          name: 'Workshop rag',
+          category: 'Consumables',
+          quantity: 5,
+        ).toJson(),
       ]),
     });
     await tester.pumpWidget(const InventoryApp());
     await tester.pumpAndSettle();
     await tester.drag(find.byType(ListView).first, const Offset(0, -600));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Umlagern'));
+    // The chain comes first (sorted by name).
+    await tester.ensureVisible(find.text('Umlagern').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Umlagern'));
+    await tester.tap(find.text('Umlagern').first);
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextFormField, 'Menge'), '9');
     await tester.tap(find.widgetWithText(FilledButton, 'Umlagern'));
@@ -98,7 +106,7 @@ void main() {
     await tester.pumpAndSettle();
     final prefs = await SharedPreferences.getInstance();
     final stored = Part.fromJson(
-      (jsonDecode(prefs.getString('workshop_parts')!) as List).single,
+      (jsonDecode(prefs.getString('workshop_parts')!) as List).first,
     );
     expect(stored.quantity, 5);
     expect(stored.carQuantity, 3);
@@ -112,7 +120,23 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    // Only parts kept in the car are listed.
     expect(find.byTooltip('Use one · Werkstatt'), findsNothing);
     expect(find.byTooltip('Use one · Auto'), findsOneWidget);
+    expect(find.text('Chain'), findsOneWidget);
+    expect(find.text('Workshop rag'), findsNothing);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(SegmentedButton<StockSite?>),
+        matching: find.text('Alle'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Workshop rag'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Workshop rag'), findsOneWidget);
   });
 }
