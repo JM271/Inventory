@@ -8,11 +8,17 @@ void main() {
       id: 'mine',
       name: 'My chain',
       category: 'Drivetrain',
-      sku: 'oxv8-30',
+      sku: 'ms-sp-2002',
       quantity: 17,
     );
     final catalog = [
-      for (final sku in ['OXV8-30', 'OXV8-07', 'OXV8-16', 'KD001', 'OXV8-01E'])
+      for (final sku in [
+        'MS-SP-2002',
+        'MS-SP-3010',
+        'MS-SP-2007',
+        'MS-SP-1001',
+        'MS-SP-3009',
+      ])
         Part(
           id: sku,
           name: sku,
@@ -31,7 +37,7 @@ void main() {
           .every((p) => p.name.endsWith('[TEST]') && p.imageAsset.isNotEmpty),
       isTrue,
     );
-    expect(result.singleWhere((p) => p.sku == 'KD001').quantity, 0);
+    expect(result.singleWhere((p) => p.sku == 'MS-SP-1001').quantity, 0);
     expect(addTestStock(result, catalog).length, 5);
   });
 }

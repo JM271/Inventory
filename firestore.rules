@@ -51,6 +51,17 @@ service cloud.firestore {
         && data.get('validityDays', 30) is int && data.get('validityDays', 30) >= 0
         && text(data.get('currency', ''), 10) && text(data.get('footer', ''), 2000);
     }
+    // --- Shared product catalogue (Spoke and offers app) ---
+    function validProduct(data) {
+      return data.keys().hasAll(['sku', 'name', 'category'])
+        && data.keys().hasOnly(['sku', 'name', 'category', 'supplierSku', 'imageAsset', 'priceCents'])
+        && text(data.sku, 200) && data.sku.size() > 0
+        && text(data.name, 500) && data.name.size() > 0
+        && text(data.category, 100)
+        && text(data.get('supplierSku', ''), 200)
+        && text(data.get('imageAsset', ''), 500)
+        && data.get('priceCents', 0) is int && data.get('priceCents', 0) >= 0;
+    }
     match /users/{uid} {
       allow get: if signedIn() && (request.auth.uid == uid || admin());
       allow list: if admin();
@@ -133,6 +144,21 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(['items'])
           && request.resource.data.items is list && request.resource.data.items.size() <= 500;
         allow delete: if false;
+      }
+      // The shared product catalogue. The SKU is stored in upper case and
+      // its encoded form is the document ID, so a SKU exists only once.
+      match /products/{productId} {
+        allow read: if member();
+        allow create, update: if member() && validProduct(request.resource.data);
+        allow delete: if admin();
+      }
+      // Set once when the catalogue was first filled from the bundled list.
+      match /catalogConfig/state {
+        allow read: if member();
+        allow create: if member()
+          && request.resource.data.keys().hasOnly(['seeded'])
+          && request.resource.data.seeded == true;
+        allow update, delete: if false;
       }
       // Own sales price per catalogue SKU, overriding the catalogue price.
       match /partPrices/{key} {

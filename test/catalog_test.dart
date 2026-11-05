@@ -90,8 +90,11 @@ void main() {
     tester,
   ) async {
     final products = (await tester.runAsync(loadProductCatalog))!;
-    expect(products.length, 243);
-    expect(products.map((p) => p.sku).toSet().length, 243);
+    // The Molenstraat product list, the same as in the offers app.
+    expect(products.length, 54);
+    expect(products.map((p) => p.sku).toSet().length, 54);
+    expect(products.every((p) => p.sku.startsWith('MS-')), isTrue);
+    expect(products.every((p) => p.productNumber == p.sku), isTrue);
     for (final p in products) {
       expect(p.name, isNotEmpty);
       expect(categories, contains(p.category));
@@ -113,7 +116,7 @@ void main() {
       rootBundle.evict('assets/product_catalog.json');
       return loadProductCatalog();
     }))!;
-    final replacement = products.firstWhere((p) => p.sku == 'OXV8-05');
+    final replacement = products.firstWhere((p) => p.sku == 'MS-SP-3009');
     final original = Part(
       id: 'original',
       name: 'Original part',
@@ -207,9 +210,9 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 300));
     });
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'OXV8-01E');
+    await tester.enterText(find.byType(TextField), 'MS-SP-3009');
     await tester.pumpAndSettle();
-    await tester.tap(find.text('OXV8-01E').last);
+    await tester.tap(find.text('MS-SP-3009').last);
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextFormField, 'Quantity'), '4');
     await tester.ensureVisible(find.text('Save part'));
@@ -218,7 +221,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpWidget(const InventoryApp());
     await tester.pumpAndSettle();
-    expect(find.text('V8 battery lock'), findsOneWidget);
+    expect(find.text('3 in 1 switch'), findsOneWidget);
     expect(find.text('4'), findsWidgets);
     expect(find.byType(ProductPhoto), findsOneWidget);
     // Selecting an existing SKU edits its stock rather than duplicating it.
@@ -230,9 +233,9 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 300));
     });
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'OXV8-01E');
+    await tester.enterText(find.byType(TextField), 'MS-SP-3009');
     await tester.pumpAndSettle();
-    await tester.tap(find.text('OXV8-01E').last);
+    await tester.tap(find.text('MS-SP-3009').last);
     await tester.pumpAndSettle();
     expect(find.widgetWithText(TextFormField, '4'), findsOneWidget);
   });

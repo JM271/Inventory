@@ -171,3 +171,25 @@ test('offer settings, price list and part prices are validated', async () => {
   await assertFails(getDocs(collection(client('pending'), `${root}/partPrices`)));
   await assertSucceeds(deleteDoc(price));
 });
+
+test('the shared product catalogue is validated and seeded once', async () => {
+  const db = client('editor');
+  const product = doc(db, `${root}/products/TVMtU1AtMzAwOQ`);
+  await assertSucceeds(setDoc(product, { sku: 'MS-SP-3009', name: '3 in 1 switch', category: 'Spare Parts', supplierSku: 'OXV8-05', imageAsset: 'assets/products/oxv8-05.png', priceCents: 4500 }));
+  await assertSucceeds(updateDoc(product, { priceCents: 4900 }));
+  await assertSucceeds(setDoc(doc(db, `${root}/products/new`), { sku: 'MS-SP-9001', name: 'New part', category: 'Spare Parts' }));
+  await assertFails(updateDoc(product, { priceCents: -1 }));
+  await assertFails(updateDoc(product, { priceCents: 45.5 }));
+  await assertFails(updateDoc(product, { sku: '' }));
+  await assertFails(updateDoc(product, { stock: 3 }));
+  await assertFails(setDoc(doc(db, `${root}/products/bad`), { sku: 'X', category: 'Spare Parts' }));
+  await assertFails(getDocs(collection(client('pending'), `${root}/products`)));
+  await assertFails(deleteDoc(product));
+  await assertSucceeds(deleteDoc(doc(client('admin'), `${root}/products/new`)));
+  const state = doc(db, `${root}/catalogConfig/state`);
+  await assertFails(setDoc(state, { seeded: false }));
+  await assertSucceeds(setDoc(state, { seeded: true }));
+  await assertFails(setDoc(state, { seeded: true }));
+  await assertFails(deleteDoc(state));
+  await assertFails(setDoc(doc(db, `${root}/catalogConfig/other`), { seeded: true }));
+});

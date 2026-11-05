@@ -130,9 +130,14 @@ Autorisierte Domains** geprüft werden. Bei einer eigenen Domain diese ergänzen
 - Lokale V1-Daten werden nicht als gemeinsamer Bestand angezeigt und nicht
   automatisch hochgeladen. Im produktiven Einstieg gibt es keinen automatischen
   Rückfall auf ein lokales Lager.
-- Der mitgelieferte Produktkatalog bleibt ein App-Asset; eigene neue Produkte
-  werden gemeinsam in Firestore gespeichert. Geöffnete Katalogansichten erhalten
+- Der Produktkatalog liegt gemeinsam mit der Angebots-App in Firestore
+  (`products`, Regeln: lesen und schreiben für Mitglieder, löschen nur für
+  Admins). Die mitgelieferte Liste füllt ihn einmalig (`catalogConfig/state`).
+  Neue Produkte werden dort gespeichert. Geöffnete Katalogansichten erhalten
   Aktualisierungen. Bestandsberichte verwenden den aktuell angezeigten Bestand.
+- Vor dem ersten Start der Versionen mit gemeinsamem Katalog die Regeln aus
+  diesem Repository deployen (`firebase deploy --only firestore:rules`), sonst
+  kann der Katalog nicht gelesen und befüllt werden.
 
 ## Prüfungen
 

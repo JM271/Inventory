@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'catalog_migration.dart';
 import 'cloud_inventory.dart';
 import 'stock_changes_page.dart';
 import 'firebase_gate.dart';
@@ -157,6 +158,13 @@ class _InventoryPageState extends State<InventoryPage> {
 
   Future<void> load() async {
     if (widget.cloud != null) {
+      // Fills the shared catalogue on first use; harmless afterwards.
+      loadBundledProducts().then(widget.cloud!.seedProducts).catchError((
+        Object e,
+      ) {
+        debugPrint('Katalog nicht eingerichtet: $e');
+        return false;
+      });
       cloudSubscription = widget.cloud!.parts
           .snapshots(includeMetadataChanges: true)
           .listen(
@@ -565,6 +573,15 @@ class _InventoryPageState extends State<InventoryPage> {
                       builder: (_) => UsersPage(store: widget.cloud!),
                     ),
                   );
+                } else if (value == 'catalog') {
+                  await Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) => CatalogMigrationPage(
+                        cloud: widget.cloud!,
+                        parts: parts,
+                      ),
+                    ),
+                  );
                 } else if (value == 'import') {
                   try {
                     await importLocal();
@@ -583,6 +600,11 @@ class _InventoryPageState extends State<InventoryPage> {
                   const PopupMenuItem(
                     value: 'users',
                     child: Text('Nutzer verwalten'),
+                  ),
+                if (widget.admin)
+                  const PopupMenuItem(
+                    value: 'catalog',
+                    child: Text('Lager auf Katalog umstellen'),
                   ),
                 if (widget.admin)
                   const PopupMenuItem(
@@ -1145,9 +1167,10 @@ class _PartEditorState extends State<PartEditor> {
               key: ValueKey(category),
               initialValue: category,
               decoration: const InputDecoration(labelText: 'Category'),
-              items: categories
-                  .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                  .toList(),
+              items: {
+                ...categories,
+                category,
+              }.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
               onChanged: (v) => category = v!,
             ),
             const SizedBox(height: 16),

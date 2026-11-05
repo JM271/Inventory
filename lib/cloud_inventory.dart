@@ -34,6 +34,12 @@ class CloudInventory {
       workshop.collection('parts');
   CollectionReference<Map<String, dynamic>> get catalog =>
       workshop.collection('catalog');
+
+  /// The shared product catalogue, also used by the offers app.
+  CollectionReference<Map<String, dynamic>> get products =>
+      workshop.collection('products');
+  DocumentReference<Map<String, dynamic>> get catalogState =>
+      workshop.collection('catalogConfig').doc('state');
   CollectionReference<Map<String, dynamic>> get members =>
       workshop.collection('members');
 
@@ -175,6 +181,77 @@ class CloudInventory {
         if (!existingCustom[key]!) tx.set(catalog.doc(key), product.toJson());
       }
       tx.set(workshop, {'initialized': true});
+    });
+  }
+
+  /// Writes the switch to the shared catalogue in one transaction. Fails
+  /// without writing anything if a part changed since the preview.
+  Future<void> applyPartChanges(
+    List<({Part before, Part? after})> changes,
+  ) async {
+    if (changes.length * 2 > 500) {
+      throw const InventoryConflict(
+        'Zu viele Artikel für eine Umstellung. Bitte in mehreren Schritten.',
+      );
+    }
+    await db.runTransaction((tx) async {
+      final refs = [
+        for (final c in changes) parts.doc(documentId(c.before.id)),
+      ];
+      final snapshots = [for (final ref in refs) await tx.get(ref)];
+      for (var i = 0; i < changes.length; i++) {
+        checkUnchanged(
+          snapshots[i].exists ? Part.fromJson(snapshots[i].data()!) : null,
+          changes[i].before,
+        );
+      }
+      for (var i = 0; i < changes.length; i++) {
+        final (:before, :after) = changes[i];
+        recordChange(tx, before, after, after == null ? 'Deleted' : 'Edited');
+        if (after == null) {
+          tx.delete(refs[i]);
+        } else {
+          tx.set(refs[i], after.toJson());
+        }
+      }
+    });
+  }
+
+  /// Document ID of a product: its upper-case SKU, encoded.
+  static String productId(String sku) => documentId(sku.trim().toUpperCase());
+
+  /// Fills the shared catalogue from the bundled product list, once. Does
+  /// nothing if it was filled before (by this or the offers app), so
+  /// products changed or deleted later are not brought back.
+  Future<bool> seedProducts(List<Map<String, dynamic>> bundled) =>
+      db.runTransaction((tx) async {
+        if ((await tx.get(catalogState)).exists) return false;
+        for (final row in bundled) {
+          final sku = (row['sku'] as String? ?? '').trim().toUpperCase();
+          if (sku.isEmpty) continue;
+          tx.set(products.doc(productId(sku)), {
+            'sku': sku,
+            'name': row['name'],
+            'category': row['category'],
+            'supplierSku': row['supplierSku'] ?? '',
+            'imageAsset': row['imageAsset'] ?? '',
+            'priceCents': row['priceCents'] ?? 0,
+          });
+        }
+        tx.set(catalogState, {'seeded': true});
+        return true;
+      });
+
+  /// Adds a product to the shared catalogue; its SKU must be new.
+  Future<void> saveProduct(Map<String, dynamic> row) async {
+    final ref = products.doc(productId(row['sku'] as String));
+    await db.runTransaction((tx) async {
+      if ((await tx.get(ref)).exists) {
+        throw const InventoryConflict(
+          'Diese Produktnummer ist bereits im Katalog.',
+        );
+      }
+      tx.set(ref, row);
     });
   }
 

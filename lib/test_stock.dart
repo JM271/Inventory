@@ -3,11 +3,11 @@ import 'part.dart';
 // Explicitly labelled sample stock; existing SKUs are never changed.
 List<Part> addTestStock(List<Part> existing, List<Part> catalog) {
   const quantities = {
-    'OXV8-01E': 4,
-    'OXV8-07': 1,
-    'OXV8-16': 8,
-    'OXV8-30': 3,
-    'KD001': 0,
+    'MS-SP-3009': 4,
+    'MS-SP-3010': 1,
+    'MS-SP-2007': 8,
+    'MS-SP-2002': 3,
+    'MS-SP-1001': 0,
   };
   final skus = existing.map((p) => p.sku.toUpperCase()).toSet();
   return [

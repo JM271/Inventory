@@ -12,6 +12,9 @@ import 'part.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const categories = [
+  'Fatbikes',
+  'Spare Parts',
+  'Accessoires',
   'Drivetrain',
   'Brakes',
   'Wheels & tyres',
@@ -25,26 +28,53 @@ const categories = [
 
 const _customCatalogKey = 'custom_product_catalog_v1';
 
+/// The Molenstraat product list bundled with the app (bexio export, same
+/// file as in the offers app). With Firebase it only fills the shared
+/// catalogue once; afterwards the catalogue in the database applies.
+///
+/// Not cached: a cached load stays bound to the zone that started it.
+Future<List<Map<String, dynamic>>> loadBundledProducts() async => [
+  for (final row in jsonDecode(
+    await rootBundle.loadString('assets/product_catalog.json', cache: false),
+  ) as List)
+    Map<String, dynamic>.from(row as Map),
+];
+
+/// A product of the shared catalogue as a template for a stock part: our
+/// product ID is the SKU, the supplier number the order number.
+Part productPart(Map<String, dynamic> row) {
+  final sku = (row['sku'] as String? ?? '').trim().toUpperCase();
+  return Part(
+    id: 'catalog-$sku',
+    name: (row['name'] as String? ?? '').trim(),
+    category: (row['category'] as String? ?? '').trim(),
+    sku: sku,
+    productNumber: sku,
+    orderNumber: (row['supplierSku'] as String? ?? '').trim(),
+    imageAsset: (row['imageAsset'] as String? ?? '').trim(),
+  );
+}
+
+/// The shared product catalogue: the products in the database (the bundled
+/// list until they are seeded) plus products added in earlier versions.
 Future<List<Part>> loadProductCatalog({CloudInventory? cloud}) async {
-  final data = jsonDecode(
-    await rootBundle.loadString('assets/product_catalog.json'),
-  ) as List;
-  final bundled = data
-      .map(
-        (row) => Part(
-          id: 'catalog-${row['sku']}',
-          name: row['name'],
-          category: row['category'],
-          sku: row['sku'],
-          productNumber: row['productNumber'] as String?,
-          orderNumber: row['orderNumber'] as String?,
-          imageAsset: row['imageAsset'],
-        ),
-      )
-      .toList();
+  final bundled = (await loadBundledProducts()).map(productPart).toList();
   if (cloud != null) {
+    final shared = await cloud.products.get();
+    final products =
+        shared.docs.isEmpty
+              ? bundled
+              : shared.docs.map((doc) => productPart(doc.data())).toList()
+          ..sort((a, b) => a.sku.compareTo(b.sku));
+    final known = {for (final p in products) p.sku.toUpperCase()};
     final custom = await cloud.catalog.get();
-    return [...bundled, ...custom.docs.map((doc) => Part.fromJson(doc.data()))];
+    return [
+      ...products,
+      for (final doc in custom.docs)
+        if (Part.fromJson(doc.data()) case final p
+            when !known.contains(p.sku.toUpperCase()))
+          p,
+    ];
   }
   final prefs = await SharedPreferences.getInstance();
   final custom = jsonDecode(prefs.getString(_customCatalogKey) ?? '[]') as List;
@@ -85,7 +115,7 @@ class ProductCatalogPage extends StatefulWidget {
 class _ProductCatalogPageState extends State<ProductCatalogPage> {
   late Future<List<Part>> catalog;
   CloudInventory? cloud;
-  StreamSubscription<dynamic>? catalogSubscription;
+  final catalogSubscriptions = <StreamSubscription<dynamic>>[];
   bool initialized = false;
 
   @override
@@ -95,26 +125,38 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
     if (!initialized || next != cloud) {
       initialized = true;
       cloud = next;
-      catalogSubscription?.cancel();
+      for (final s in catalogSubscriptions) {
+        s.cancel();
+      }
+      catalogSubscriptions.clear();
       catalog = loadProductCatalog(cloud: cloud);
-      catalogSubscription = cloud?.catalog.snapshots().listen(
-        (_) {
-          if (mounted) {
-            setState(() => catalog = loadProductCatalog(cloud: cloud));
-          }
-        },
-        onError: (Object error) {
-          if (mounted) {
-            setState(() => catalog = Future<List<Part>>.error(error));
-          }
-        },
-      );
+      for (final source in [?cloud?.products, ?cloud?.catalog]) {
+        catalogSubscriptions.add(
+          source
+              .snapshots()
+              .skip(1)
+              .listen(
+                (_) {
+                  if (mounted) {
+                    setState(() => catalog = loadProductCatalog(cloud: cloud));
+                  }
+                },
+                onError: (Object error) {
+                  if (mounted) {
+                    setState(() => catalog = Future<List<Part>>.error(error));
+                  }
+                },
+              ),
+        );
+      }
     }
   }
 
   @override
   void dispose() {
-    catalogSubscription?.cancel();
+    for (final s in catalogSubscriptions) {
+      s.cancel();
+    }
     super.dispose();
   }
 
@@ -271,6 +313,19 @@ class _NewProductPageState extends State<_NewProductPage> {
     if (saving || !form.currentState!.validate()) return;
     setState(() => saving = true);
     try {
+      if (widget.cloud != null) {
+        final row = {
+          'sku': productNumber.text.trim().toUpperCase(),
+          'name': name.text.trim(),
+          'category': category,
+          'supplierSku': orderNumber.text.trim(),
+          'imageAsset': '',
+          'priceCents': 0,
+        };
+        await widget.cloud!.saveProduct(row);
+        if (mounted) Navigator.pop(context, productPart(row));
+        return;
+      }
       final product = Part(
         id: 'custom-${DateTime.now().microsecondsSinceEpoch}',
         name: name.text.trim(),
@@ -279,11 +334,6 @@ class _NewProductPageState extends State<_NewProductPage> {
         orderNumber: orderNumber.text.trim(),
         category: category,
       );
-      if (widget.cloud != null) {
-        await widget.cloud!.saveCatalogProduct(product);
-        if (mounted) Navigator.pop(context, product);
-        return;
-      }
       final prefs = await SharedPreferences.getInstance();
       final custom =
           jsonDecode(prefs.getString(_customCatalogKey) ?? '[]') as List;
