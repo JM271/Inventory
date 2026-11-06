@@ -46,9 +46,9 @@ void main() {
     expect(find.text('11-speed chain'), findsOneWidget);
     await tester.drag(find.byType(ListView).first, const Offset(0, -500));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byTooltip('Use one · Werkstatt'));
+    await tester.ensureVisible(find.byTooltip('Use one · Poya'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Use one · Werkstatt'));
+    await tester.tap(find.byTooltip('Use one · Poya'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Nachbestellen · min. 2'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());

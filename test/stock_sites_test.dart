@@ -22,7 +22,7 @@ void main() {
     expect(part.quantity, 8);
     expect(part.carQuantity, 0);
     expect(part.lowAt(StockSite.car), isFalse);
-    part.transfer(StockSite.workshop, 3);
+    part.transfer(StockSite.workshop, StockSite.car, 3);
     part.carMinimum = 3;
     final reloaded = Part.fromJson(part.toJson());
     expect(reloaded.quantity, 5);
@@ -30,18 +30,45 @@ void main() {
     expect(reloaded.totalQuantity, 8);
     expect(reloaded.lowAt(StockSite.workshop), isFalse);
     expect(reloaded.lowAt(StockSite.car), isTrue);
-    reloaded.transfer(StockSite.car, 2);
+    reloaded.transfer(StockSite.car, StockSite.workshop, 2);
     expect(reloaded.quantity, 7);
     expect(reloaded.carQuantity, 1);
     for (final amount in [0, -1, 8]) {
       expect(
-        () => reloaded.transfer(StockSite.workshop, amount),
+        () => reloaded.transfer(StockSite.workshop, StockSite.car, amount),
         throwsArgumentError,
       );
       expect(reloaded.totalQuantity, 8);
     }
     expect(() => reloaded.adjustAt(StockSite.car, -2), throwsArgumentError);
     expect(reloaded.carQuantity, 1);
+  });
+
+  test('garage is a third site with its own stock and minimum', () {
+    final part = Part.fromJson(
+      Part(id: '1', name: 'Chain', category: 'Drivetrain', quantity: 8).toJson()
+        ..remove('garageQuantity')
+        ..remove('garageMinimum'),
+    );
+    expect(part.garageQuantity, 0);
+    expect(part.lowAt(StockSite.garage), isFalse);
+    part.transfer(StockSite.workshop, StockSite.garage, 4);
+    part.transfer(StockSite.garage, StockSite.car, 1);
+    part.garageMinimum = 3;
+    final reloaded = Part.fromJson(part.toJson());
+    expect(
+      (reloaded.quantity, reloaded.carQuantity, reloaded.garageQuantity),
+      (4, 1, 3),
+    );
+    expect(reloaded.totalQuantity, 8);
+    expect(reloaded.lowAt(StockSite.garage), isTrue);
+    expect(reloaded.low, isTrue);
+    expect(
+      () => reloaded.transfer(StockSite.garage, StockSite.garage, 1),
+      throwsArgumentError,
+    );
+    expect(() => reloaded.adjustAt(StockSite.garage, -4), throwsArgumentError);
+    expect(reloaded.garageQuantity, 3);
   });
 
   test('Excel includes both locations and combined totals', () {
@@ -121,7 +148,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     // Only parts kept in the car are listed.
-    expect(find.byTooltip('Use one · Werkstatt'), findsNothing);
+    expect(find.byTooltip('Use one · Poya'), findsNothing);
     expect(find.byTooltip('Use one · Auto'), findsOneWidget);
     expect(find.text('Chain'), findsOneWidget);
     expect(find.text('Workshop rag'), findsNothing);

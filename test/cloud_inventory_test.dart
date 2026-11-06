@@ -30,7 +30,7 @@ void main() {
     'history preserves quantities and actor, and failed writes add nothing',
     () async {
       await first.savePart(sample());
-      await second.transfer(sample().id, StockSite.workshop, 2);
+      await second.transfer(sample().id, StockSite.workshop, StockSite.car, 2);
       var history = (await first.changes.get()).docs
           .map((d) => d.data())
           .toList();
@@ -38,6 +38,8 @@ void main() {
       expect(transfer['uid'], 'bob');
       expect(transfer['beforeWorkshop'], 5);
       expect(transfer['afterWorkshop'], 3);
+      expect(transfer['beforeGarage'], 0);
+      expect(transfer['afterGarage'], 0);
       expect(transfer['beforeCar'], 1);
       expect(transfer['afterCar'], 3);
       await expectLater(
@@ -74,11 +76,11 @@ void main() {
     'transfer is atomic and excessive removal leaves both sites intact',
     () async {
       await first.savePart(sample());
-      await second.transfer(sample().id, StockSite.workshop, 3);
+      await second.transfer(sample().id, StockSite.workshop, StockSite.car, 3);
       expect((await current()).quantity, 2);
       expect((await current()).carQuantity, 4);
       await expectLater(
-        first.transfer(sample().id, StockSite.workshop, 3),
+        first.transfer(sample().id, StockSite.workshop, StockSite.car, 3),
         throwsArgumentError,
       );
       expect((await current()).totalQuantity, 6);

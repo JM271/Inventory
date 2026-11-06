@@ -119,8 +119,10 @@ List<PartChange> buildCatalogMigration(
           : keeper.imageAsset
       ..quantity = group.fold(0, (sum, p) => sum + p.quantity)
       ..carQuantity = group.fold(0, (sum, p) => sum + p.carQuantity)
+      ..garageQuantity = group.fold(0, (sum, p) => sum + p.garageQuantity)
       ..minimum = group.map((p) => p.minimum).reduce(_max)
       ..carMinimum = group.map((p) => p.carMinimum).reduce(_max)
+      ..garageMinimum = group.map((p) => p.garageMinimum).reduce(_max)
       ..location = group
           .map((p) => p.location)
           .firstWhere((l) => l.isNotEmpty, orElse: () => '');
@@ -313,7 +315,7 @@ class _RowTile extends StatelessWidget {
       children: [
         Text(part.name, style: const TextStyle(fontWeight: FontWeight.bold)),
         Text(
-          '$numbers\nWerkstatt ${part.quantity} · Auto ${part.carQuantity}',
+          '$numbers\nPoya ${part.quantity} · Auto ${part.carQuantity} · Garage ${part.garageQuantity}',
           style: const TextStyle(color: Colors.black54),
         ),
         const SizedBox(height: 8),

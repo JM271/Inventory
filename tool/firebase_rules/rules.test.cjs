@@ -7,7 +7,7 @@ const { doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc, runTrans
 
 let env;
 const root = 'workshops/molenstraat';
-const part = { id: 'chain', name: 'Chain', category: 'Drivetrain', sku: 'CHAIN', imageAsset: '', location: '', quantity: 1, minimum: 2, carQuantity: 0, carMinimum: 0 };
+const part = { id: 'chain', name: 'Chain', category: 'Drivetrain', sku: 'CHAIN', imageAsset: '', location: '', quantity: 1, minimum: 2, carQuantity: 0, carMinimum: 0, garageQuantity: 0, garageMinimum: 0 };
 const client = (uid) => env.authenticatedContext(uid, { email: `${uid}@example.com` }).firestore();
 before(async () => {
   env = await initializeTestEnvironment({
@@ -53,6 +53,11 @@ test('members edit valid stock but cannot grant membership', async () => {
   await assertFails(updateDoc(doc(db, `${root}/parts/chain`), { productNumber: 123 }));
   await assertFails(updateDoc(doc(db, `${root}/parts/chain`), { quantity: -1 }));
   await assertFails(updateDoc(doc(db, `${root}/parts/chain`), { carQuantity: 1.5 }));
+  await assertSucceeds(updateDoc(doc(db, `${root}/parts/chain`), { garageQuantity: 3, garageMinimum: 1 }));
+  await assertFails(updateDoc(doc(db, `${root}/parts/chain`), { garageQuantity: -1 }));
+  // Older app versions write parts without garage stock; that would erase it.
+  const { garageQuantity, garageMinimum, ...withoutGarage } = part;
+  await assertFails(setDoc(doc(db, `${root}/parts/chain`), withoutGarage));
   await assertFails(updateDoc(doc(db, `${root}/parts/chain`), { id: 'different' }));
   await assertFails(setDoc(doc(db, `${root}/members/pending`), { role: 'editor' }));
   await assertFails(getDocs(collection(db, `${root}/members`)));
@@ -109,6 +114,8 @@ test('stock history is member-only, attributed and immutable', async () => {
   const change = { partId: 'chain', name: 'Chain', productNumber: 'CHAIN', action: 'Adjusted', beforeWorkshop: 1, afterWorkshop: 2, beforeCar: 0, afterCar: 0, uid: 'editor', createdAt: serverTimestamp() };
   await assertFails(setDoc(ref, { ...change, uid: 'admin' }));
   await assertSucceeds(setDoc(ref, change));
+  await assertSucceeds(setDoc(doc(db, `${root}/stockChanges/garage`), { ...change, beforeGarage: 0, afterGarage: 2 }));
+  await assertFails(setDoc(doc(db, `${root}/stockChanges/bad`), { ...change, afterGarage: -1 }));
   await assertSucceeds(getDocs(collection(db, `${root}/stockChanges`)));
   await assertFails(getDocs(collection(client('pending'), `${root}/stockChanges`)));
   await assertFails(updateDoc(ref, { afterWorkshop: 99 }));

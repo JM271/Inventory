@@ -24,6 +24,14 @@ void main() {
       ),
       Part(id: '3', name: 'Car disabled', category: 'Other', quantity: 8),
       Part(id: '4', name: 'Empty', category: 'Other'),
+      Part(
+        id: '5',
+        name: 'Garage low',
+        category: 'Other',
+        quantity: 5,
+        garageQuantity: 1,
+        garageMinimum: 2,
+      ),
     ];
     final book = Excel.decodeBytes(
       buildInventoryReport(parts, DateTime.utc(2026, 10, 16)),
@@ -31,20 +39,24 @@ void main() {
     expect(book.tables.keys, ['Inventory']);
     final sheet = book['Inventory'];
     final rows = sheet.rows;
-    expect(rows[3][1]!.value, IntCellValue(4));
-    expect(rows[3][3]!.value, IntCellValue(30));
-    expect(rows[3][5]!.value, IntCellValue(3));
-    expect(rows[4][1]!.value, IntCellValue(18));
+    expect(rows[3][1]!.value, IntCellValue(5));
+    expect(rows[3][3]!.value, IntCellValue(36));
+    expect(rows[3][5]!.value, IntCellValue(4));
+    expect(rows[4][1]!.value, IntCellValue(23));
     expect(rows[4][3]!.value, IntCellValue(12));
-    expect(rows[4][5]!.value, IntCellValue(2));
-    expect(rows[4][7]!.value, IntCellValue(1));
+    expect(rows[4][5]!.value, IntCellValue(1));
+    expect(rows[4][7]!.value, IntCellValue(2));
+    expect(rows[4][9]!.value, IntCellValue(1));
+    expect(rows[4][11]!.value, IntCellValue(1));
     final detail = {
       for (final row in rows.skip(6)) row[0]!.value.toString(): row,
     };
-    expect(detail['Car low']![11]!.value, TextCellValue('In stock'));
-    expect(detail['Car low']![12]!.value, TextCellValue('Low stock'));
-    expect(detail['Workshop low']![11]!.value, TextCellValue('Low stock'));
-    expect(detail['Workshop low']![12]!.value, TextCellValue('In stock'));
+    expect(detail['Car low']![13]!.value, TextCellValue('In stock'));
+    expect(detail['Car low']![14]!.value, TextCellValue('Low stock'));
+    expect(detail['Workshop low']![13]!.value, TextCellValue('Low stock'));
+    expect(detail['Workshop low']![14]!.value, TextCellValue('In stock'));
+    expect(detail['Garage low']![15]!.value, TextCellValue('Low stock'));
+    expect(detail['Car low']![15]!.value, TextCellValue('Out of stock'));
     expect(detail['Car disabled']![7]!.value, TextCellValue('In stock'));
     expect(detail['Empty']![7]!.value, TextCellValue('Out of stock'));
     for (final row in detail.values) {
@@ -52,7 +64,8 @@ void main() {
       expect(
         total,
         (row[8]!.value as IntCellValue).value +
-            (row[9]!.value as IntCellValue).value,
+            (row[9]!.value as IntCellValue).value +
+            (row[11]!.value as IntCellValue).value,
       );
     }
   });

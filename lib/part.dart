@@ -1,9 +1,13 @@
 import 'product_identifiers.dart';
 
-enum StockSite { workshop, car }
+enum StockSite { workshop, car, garage }
 
 extension StockSiteLabel on StockSite {
-  String get label => this == StockSite.workshop ? 'Werkstatt' : 'Auto';
+  String get label => switch (this) {
+    StockSite.workshop => 'Poya',
+    StockSite.car => 'Auto',
+    StockSite.garage => 'Garage',
+  };
 }
 
 class Part {
@@ -20,6 +24,8 @@ class Part {
     this.minimum = 2,
     this.carQuantity = 0,
     this.carMinimum = 0,
+    this.garageQuantity = 0,
+    this.garageMinimum = 0,
   }) : _productNumber = productNumber?.trim(),
        _orderNumber = orderNumber?.trim();
   final String id;
@@ -40,34 +46,43 @@ class Part {
   set orderNumber(String value) => _orderNumber = value.trim();
   String get productIdentification => productNumber;
   String get supplierOrderNumber => orderNumber;
-  int quantity, minimum, carQuantity, carMinimum;
-  int get totalQuantity => quantity + carQuantity;
-  int quantityAt(StockSite site) =>
-      site == StockSite.workshop ? quantity : carQuantity;
-  int minimumAt(StockSite site) =>
-      site == StockSite.workshop ? minimum : carMinimum;
+  int quantity, minimum, carQuantity, carMinimum, garageQuantity, garageMinimum;
+  int get totalQuantity => quantity + carQuantity + garageQuantity;
+  int quantityAt(StockSite site) => switch (site) {
+    StockSite.workshop => quantity,
+    StockSite.car => carQuantity,
+    StockSite.garage => garageQuantity,
+  };
+  int minimumAt(StockSite site) => switch (site) {
+    StockSite.workshop => minimum,
+    StockSite.car => carMinimum,
+    StockSite.garage => garageMinimum,
+  };
+
+  /// Poya (the workshop) is always checked; at the other sites a minimum of 0
+  /// turns the restock warning off.
   bool lowAt(StockSite site) => site == StockSite.workshop
       ? quantity <= minimum
-      : carMinimum > 0 && carQuantity <= carMinimum;
-  bool get low => lowAt(StockSite.workshop) || lowAt(StockSite.car);
+      : minimumAt(site) > 0 && quantityAt(site) <= minimumAt(site);
+  bool get low => StockSite.values.any(lowAt);
   void adjustAt(StockSite site, int delta) {
     if (quantityAt(site) + delta < 0) throw ArgumentError('Insufficient stock');
-    if (site == StockSite.workshop) {
-      quantity += delta;
-    } else {
-      carQuantity += delta;
+    switch (site) {
+      case StockSite.workshop:
+        quantity += delta;
+      case StockSite.car:
+        carQuantity += delta;
+      case StockSite.garage:
+        garageQuantity += delta;
     }
   }
 
-  void transfer(StockSite from, int amount) {
-    if (amount <= 0 || amount > quantityAt(from)) {
+  void transfer(StockSite from, StockSite to, int amount) {
+    if (from == to || amount <= 0 || amount > quantityAt(from)) {
       throw ArgumentError('Invalid transfer quantity');
     }
     adjustAt(from, -amount);
-    adjustAt(
-      from == StockSite.workshop ? StockSite.car : StockSite.workshop,
-      amount,
-    );
+    adjustAt(to, amount);
   }
 
   Map<String, dynamic> toJson() => {
@@ -83,6 +98,8 @@ class Part {
     'minimum': minimum,
     'carQuantity': carQuantity,
     'carMinimum': carMinimum,
+    'garageQuantity': garageQuantity,
+    'garageMinimum': garageMinimum,
   };
   factory Part.fromJson(Map<String, dynamic> j) => Part(
     id: j['id'],
@@ -103,5 +120,7 @@ class Part {
     minimum: j['minimum'],
     carQuantity: j['carQuantity'] as int? ?? 0,
     carMinimum: j['carMinimum'] as int? ?? 0,
+    garageQuantity: j['garageQuantity'] as int? ?? 0,
+    garageMinimum: j['garageMinimum'] as int? ?? 0,
   );
 }

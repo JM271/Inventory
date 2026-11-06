@@ -55,10 +55,11 @@ class StockChangesPage extends StatelessWidget {
                   Text('Product ID: ${c['productNumber']}'),
                 Text('${c['action']} · $time'),
                 const SizedBox(height: 8),
-                Text(
-                  'Werkstatt: ${c['beforeWorkshop']} → ${c['afterWorkshop']}',
-                ),
+                Text('Poya: ${c['beforeWorkshop']} → ${c['afterWorkshop']}'),
                 Text('Auto: ${c['beforeCar']} → ${c['afterCar']}'),
+                Text(
+                  'Garage: ${c['beforeGarage'] ?? 0} → ${c['afterGarage'] ?? 0}',
+                ),
                 const SizedBox(height: 8),
                 Text(
                   'User: ${c['uid']}',

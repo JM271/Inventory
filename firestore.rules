@@ -10,8 +10,8 @@ service cloud.firestore {
     }
     function admin() { return signedIn() && membership().role == 'admin'; }
     function validPart(data) {
-      return data.keys().hasAll(['id', 'name', 'category', 'sku', 'imageAsset', 'location', 'quantity', 'minimum', 'carQuantity', 'carMinimum'])
-        && data.keys().hasOnly(['productNumber', 'orderNumber', 'id', 'name', 'category', 'sku', 'imageAsset', 'location', 'quantity', 'minimum', 'carQuantity', 'carMinimum'])
+      return data.keys().hasAll(['id', 'name', 'category', 'sku', 'imageAsset', 'location', 'quantity', 'minimum', 'carQuantity', 'carMinimum', 'garageQuantity', 'garageMinimum'])
+        && data.keys().hasOnly(['productNumber', 'orderNumber', 'id', 'name', 'category', 'sku', 'imageAsset', 'location', 'quantity', 'minimum', 'carQuantity', 'carMinimum', 'garageQuantity', 'garageMinimum'])
         && data.id is string && data.id.size() > 0 && data.id.size() <= 512
         && data.name is string && data.name.size() > 0 && data.name.size() <= 500
         && data.category is string && data.category.size() <= 100
@@ -23,7 +23,9 @@ service cloud.firestore {
         && data.quantity is int && data.quantity >= 0
         && data.minimum is int && data.minimum >= 0
         && data.carQuantity is int && data.carQuantity >= 0
-        && data.carMinimum is int && data.carMinimum >= 0;
+        && data.carMinimum is int && data.carMinimum >= 0
+        && data.garageQuantity is int && data.garageQuantity >= 0
+        && data.garageMinimum is int && data.garageMinimum >= 0;
     }
     // --- Molenstraat Angebote (repair offers app) ---
     function text(value, max) { return value is string && value.size() <= max; }
@@ -96,7 +98,7 @@ service cloud.firestore {
       match /stockChanges/{changeId} {
         allow read: if member();
         allow create: if member()
-          && request.resource.data.keys().hasOnly(['partId', 'name', 'productNumber', 'action', 'beforeWorkshop', 'afterWorkshop', 'beforeCar', 'afterCar', 'uid', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['partId', 'name', 'productNumber', 'action', 'beforeWorkshop', 'afterWorkshop', 'beforeCar', 'afterCar', 'beforeGarage', 'afterGarage', 'uid', 'createdAt'])
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.createdAt == request.time
           && request.resource.data.partId is string
@@ -106,7 +108,9 @@ service cloud.firestore {
           && request.resource.data.beforeWorkshop is int && request.resource.data.beforeWorkshop >= 0
           && request.resource.data.afterWorkshop is int && request.resource.data.afterWorkshop >= 0
           && request.resource.data.beforeCar is int && request.resource.data.beforeCar >= 0
-          && request.resource.data.afterCar is int && request.resource.data.afterCar >= 0;
+          && request.resource.data.afterCar is int && request.resource.data.afterCar >= 0
+          && request.resource.data.get('beforeGarage', 0) is int && request.resource.data.get('beforeGarage', 0) >= 0
+          && request.resource.data.get('afterGarage', 0) is int && request.resource.data.get('afterGarage', 0) >= 0;
         allow update, delete: if false;
       }
       match /catalog/{sku} {

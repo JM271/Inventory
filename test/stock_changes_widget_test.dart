@@ -27,7 +27,7 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: StockChangesPage()));
     await tester.pumpAndSettle();
     expect(find.text('Chain'), findsOneWidget);
-    expect(find.text('Werkstatt: 5 → 3'), findsOneWidget);
+    expect(find.text('Poya: 5 → 3'), findsOneWidget);
     expect(find.text('Auto: 1 → 3'), findsOneWidget);
     expect(find.text('User: This device'), findsOneWidget);
   });

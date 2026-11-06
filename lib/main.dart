@@ -236,7 +236,8 @@ class _InventoryPageState extends State<InventoryPage> {
         if (old != null &&
             next != null &&
             old.quantity == next.quantity &&
-            old.carQuantity == next.carQuantity) {
+            old.carQuantity == next.carQuantity &&
+            old.garageQuantity == next.garageQuantity) {
           continue;
         }
         final p = next ?? old!;
@@ -252,6 +253,8 @@ class _InventoryPageState extends State<InventoryPage> {
           'afterWorkshop': next?.quantity ?? 0,
           'beforeCar': old?.carQuantity ?? 0,
           'afterCar': next?.carQuantity ?? 0,
+          'beforeGarage': old?.garageQuantity ?? 0,
+          'afterGarage': next?.garageQuantity ?? 0,
           'uid': 'This device',
           'createdAt': DateTime.now().toUtc().toIso8601String(),
         });
@@ -388,6 +391,7 @@ class _InventoryPageState extends State<InventoryPage> {
     var amount = '1';
     final form = GlobalKey<FormState>();
     var from = stockSite ?? StockSite.workshop;
+    var to = from == StockSite.workshop ? StockSite.car : StockSite.workshop;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -404,22 +408,33 @@ class _InventoryPageState extends State<InventoryPage> {
                   DropdownButtonFormField<StockSite>(
                     isExpanded: true,
                     initialValue: from,
-                    decoration: const InputDecoration(labelText: 'Richtung'),
-                    items: StockSite.values
-                        .map(
-                          (site) => DropdownMenuItem(
+                    decoration: const InputDecoration(labelText: 'Von'),
+                    items: [
+                      for (final site in StockSite.values)
+                        DropdownMenuItem(value: site, child: Text(site.label)),
+                    ],
+                    onChanged: (site) => update(() {
+                      from = site!;
+                      if (to == from) {
+                        to = StockSite.values.firstWhere((s) => s != from);
+                      }
+                    }),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<StockSite>(
+                    key: ValueKey(from),
+                    isExpanded: true,
+                    initialValue: to,
+                    decoration: const InputDecoration(labelText: 'Nach'),
+                    items: [
+                      for (final site in StockSite.values)
+                        if (site != from)
+                          DropdownMenuItem(
                             value: site,
-                            child: Text(
-                              site == StockSite.workshop
-                                  ? 'Werkstatt → Auto'
-                                  : 'Auto → Werkstatt',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                            child: Text(site.label),
                           ),
-                        )
-                        .toList(),
-                    onChanged: (site) => update(() => from = site!),
+                    ],
+                    onChanged: (site) => update(() => to = site!),
                   ),
                   const SizedBox(height: 12),
                   Text('Verfügbar in ${from.label}: ${part.quantityAt(from)}'),
@@ -460,10 +475,12 @@ class _InventoryPageState extends State<InventoryPage> {
     final count = int.tryParse(amount);
     if (confirmed == true && mounted && count != null) {
       if (widget.cloud != null) {
-        await cloudWrite(() => widget.cloud!.transfer(part.id, from, count));
+        await cloudWrite(
+          () => widget.cloud!.transfer(part.id, from, to, count),
+        );
         return;
       }
-      setState(() => part.transfer(from, count));
+      setState(() => part.transfer(from, to, count));
       await save();
     }
   }
@@ -771,11 +788,15 @@ class _InventoryPageState extends State<InventoryPage> {
                         ButtonSegment(value: null, label: Text('Alle')),
                         ButtonSegment(
                           value: StockSite.workshop,
-                          label: Text('Werkstatt'),
+                          label: Text('Poya'),
                         ),
                         ButtonSegment(
                           value: StockSite.car,
                           label: Text('Auto'),
+                        ),
+                        ButtonSegment(
+                          value: StockSite.garage,
+                          label: Text('Garage'),
                         ),
                       ],
                       selected: {stockSite},
@@ -1028,7 +1049,9 @@ class _PartEditorState extends State<PartEditor> {
       quantity,
       minimum,
       carQuantity,
-      carMinimum;
+      carMinimum,
+      garageQuantity,
+      garageMinimum;
   late String category;
   Part? catalogPart;
   bool editingExisting = false;
@@ -1044,6 +1067,8 @@ class _PartEditorState extends State<PartEditor> {
     minimum = TextEditingController(text: '${p?.minimum ?? 2}');
     carQuantity = TextEditingController(text: '${p?.carQuantity ?? 0}');
     carMinimum = TextEditingController(text: '${p?.carMinimum ?? 0}');
+    garageQuantity = TextEditingController(text: '${p?.garageQuantity ?? 0}');
+    garageMinimum = TextEditingController(text: '${p?.garageMinimum ?? 0}');
     category = p?.category ?? categories.first;
   }
 
@@ -1072,6 +1097,8 @@ class _PartEditorState extends State<PartEditor> {
         minimum.text = '${existing.minimum}';
         carQuantity.text = '${existing.carQuantity}';
         carMinimum.text = '${existing.carMinimum}';
+        garageQuantity.text = '${existing.garageQuantity}';
+        garageMinimum.text = '${existing.garageMinimum}';
         location.text = existing.location;
       }
     });
@@ -1088,6 +1115,8 @@ class _PartEditorState extends State<PartEditor> {
       minimum,
       carQuantity,
       carMinimum,
+      garageQuantity,
+      garageMinimum,
     ]) {
       c.dispose();
     }
@@ -1188,10 +1217,7 @@ class _PartEditorState extends State<PartEditor> {
             field('Our product ID', productNumber),
             field('Supplier order number', orderNumber),
             field('Location (e.g. Shelf A · Bin 3)', location),
-            const Text(
-              'Werkstatt',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            const Text('Poya', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1213,8 +1239,22 @@ class _PartEditorState extends State<PartEditor> {
                 ),
               ],
             ),
+            const Text('Garage', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: field('Menge Garage', garageQuantity, number: true),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: field('Minimum Garage', garageMinimum, number: true),
+                ),
+              ],
+            ),
             const Text(
-              'Mindestbestand je Lager. Minimum Auto = 0 deaktiviert die Nachbestellwarnung im Auto.',
+              'Mindestbestand je Lager. Minimum 0 bei Auto oder Garage deaktiviert dort die Nachbestellwarnung.',
               style: TextStyle(color: Colors.black54, fontSize: 12),
             ),
             const SizedBox(height: 20),
@@ -1243,6 +1283,8 @@ class _PartEditorState extends State<PartEditor> {
                       minimum: int.parse(minimum.text),
                       carQuantity: int.parse(carQuantity.text),
                       carMinimum: int.parse(carMinimum.text),
+                      garageQuantity: int.parse(garageQuantity.text),
+                      garageMinimum: int.parse(garageMinimum.text),
                     ),
                   );
                 }

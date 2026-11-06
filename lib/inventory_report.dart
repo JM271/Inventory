@@ -11,7 +11,7 @@ Uint8List buildInventoryReport(List<Part> parts, DateTime generatedAt) {
   excel.setDefaultSheet('Inventory');
   void row(List<CellValue> values) => sheet.appendRow(values);
   TextCellValue text(String value) => TextCellValue(value);
-  row([text('Spoke · Workshop and car inventory')]);
+  row([text('Spoke · Poya, car and garage inventory')]);
   row([text('Generated (UTC)'), text(generatedAt.toUtc().toIso8601String())]);
   row([text('Scope'), text('All inventory, regardless of active filters')]);
   row([
@@ -23,14 +23,18 @@ Uint8List buildInventoryReport(List<Part> parts, DateTime generatedAt) {
     IntCellValue(parts.where((p) => p.low).length),
   ]);
   row([
-    text('Workshop units'),
+    text('Poya units'),
     IntCellValue(parts.fold<int>(0, (n, p) => n + p.quantity)),
     text('Car units'),
     IntCellValue(parts.fold<int>(0, (n, p) => n + p.carQuantity)),
-    text('Workshop restock'),
+    text('Garage units'),
+    IntCellValue(parts.fold<int>(0, (n, p) => n + p.garageQuantity)),
+    text('Poya restock'),
     IntCellValue(parts.where((p) => p.lowAt(StockSite.workshop)).length),
     text('Car restock'),
     IntCellValue(parts.where((p) => p.lowAt(StockSite.car)).length),
+    text('Garage restock'),
+    IntCellValue(parts.where((p) => p.lowAt(StockSite.garage)).length),
   ]);
   row(
     [
@@ -40,13 +44,16 @@ Uint8List buildInventoryReport(List<Part> parts, DateTime generatedAt) {
       'Supplier order number',
       'Location',
       'Total quantity',
-      'Minimum workshop',
+      'Minimum Poya',
       'Stock status',
-      'Workshop quantity',
+      'Poya quantity',
       'Car quantity',
       'Minimum car',
-      'Workshop status',
+      'Garage quantity',
+      'Minimum garage',
+      'Poya status',
       'Car status',
+      'Garage status',
     ].map(text).toList(),
   );
   final sorted = [...parts]
@@ -70,6 +77,8 @@ Uint8List buildInventoryReport(List<Part> parts, DateTime generatedAt) {
       IntCellValue(p.quantity),
       IntCellValue(p.carQuantity),
       IntCellValue(p.carMinimum),
+      IntCellValue(p.garageQuantity),
+      IntCellValue(p.garageMinimum),
       text(
         p.quantity == 0
             ? 'Out of stock'
@@ -81,6 +90,13 @@ Uint8List buildInventoryReport(List<Part> parts, DateTime generatedAt) {
         p.carQuantity == 0
             ? 'Out of stock'
             : p.lowAt(StockSite.car)
+            ? 'Low stock'
+            : 'In stock',
+      ),
+      text(
+        p.garageQuantity == 0
+            ? 'Out of stock'
+            : p.lowAt(StockSite.garage)
             ? 'Low stock'
             : 'In stock',
       ),
@@ -98,6 +114,9 @@ Uint8List buildInventoryReport(List<Part> parts, DateTime generatedAt) {
     20.0,
     18.0,
     18.0,
+    18.0,
+    18.0,
+    20.0,
     20.0,
     20.0,
   ];

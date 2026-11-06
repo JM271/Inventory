@@ -74,7 +74,7 @@ Future<Uint8List> buildInventoryPdf(
         ),
         pw.SizedBox(height: 6),
         pw.Text(
-          'Werkstatt: ${parts.fold<int>(0, (sum, p) => sum + p.quantity)} Stück  |  Auto: ${parts.fold<int>(0, (sum, p) => sum + p.carQuantity)} Stück',
+          'Poya: ${parts.fold<int>(0, (sum, p) => sum + p.quantity)} Stück  |  Auto: ${parts.fold<int>(0, (sum, p) => sum + p.carQuantity)} Stück  |  Garage: ${parts.fold<int>(0, (sum, p) => sum + p.garageQuantity)} Stück',
           style: const pw.TextStyle(fontSize: 10),
         ),
         pw.Text(
@@ -87,8 +87,9 @@ Future<Uint8List> buildInventoryPdf(
           pw.TableHelper.fromTextArray(
             headers: [
               'Artikel / Kennungen / Lagerplatz',
-              'Werkstatt',
+              'Poya',
               'Auto',
+              'Garage',
               'Gesamt',
             ],
             data: [
@@ -99,6 +100,7 @@ Future<Uint8List> buildInventoryPdf(
                   ),
                   '${p.quantity} Stück · min. ${p.minimum}\n${_siteStatus(p, StockSite.workshop)}',
                   '${p.carQuantity} Stück · min. ${p.carMinimum}\n${_siteStatus(p, StockSite.car)}',
+                  '${p.garageQuantity} Stück · min. ${p.garageMinimum}\n${_siteStatus(p, StockSite.garage)}',
                   '${p.totalQuantity}',
                 ],
             ],
@@ -106,7 +108,8 @@ Future<Uint8List> buildInventoryPdf(
               0: const pw.FlexColumnWidth(4),
               1: const pw.FlexColumnWidth(2),
               2: const pw.FlexColumnWidth(2),
-              3: const pw.FlexColumnWidth(.8),
+              3: const pw.FlexColumnWidth(2),
+              4: const pw.FlexColumnWidth(.8),
             },
             headerStyle: pw.TextStyle(
               color: PdfColors.white,
@@ -117,10 +120,7 @@ Future<Uint8List> buildInventoryPdf(
             cellStyle: const pw.TextStyle(fontSize: 8),
             cellPadding: const pw.EdgeInsets.all(6),
             oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
-            cellAlignments: {
-              2: pw.Alignment.centerRight,
-              3: pw.Alignment.centerRight,
-            },
+            cellAlignments: {4: pw.Alignment.centerRight},
           ),
       ],
     ),

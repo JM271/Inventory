@@ -50,7 +50,8 @@ class CloudInventory {
     if (before != null &&
         after != null &&
         before.quantity == after.quantity &&
-        before.carQuantity == after.carQuantity) {
+        before.carQuantity == after.carQuantity &&
+        before.garageQuantity == after.garageQuantity) {
       return;
     }
     final part = after ?? before!;
@@ -63,6 +64,8 @@ class CloudInventory {
       'afterWorkshop': after?.quantity ?? 0,
       'beforeCar': before?.carQuantity ?? 0,
       'afterCar': after?.carQuantity ?? 0,
+      'beforeGarage': before?.garageQuantity ?? 0,
+      'afterGarage': after?.garageQuantity ?? 0,
       'uid': uid,
       'createdAt': FieldValue.serverTimestamp(),
     });
@@ -95,8 +98,8 @@ class CloudInventory {
   Future<void> adjust(String id, StockSite site, int delta) =>
       _change(id, (part) => part.adjustAt(site, delta), 'Adjusted');
 
-  Future<void> transfer(String id, StockSite from, int amount) =>
-      _change(id, (part) => part.transfer(from, amount), 'Transferred');
+  Future<void> transfer(String id, StockSite from, StockSite to, int amount) =>
+      _change(id, (part) => part.transfer(from, to, amount), 'Transferred');
 
   Future<void> _change(
     String id,
