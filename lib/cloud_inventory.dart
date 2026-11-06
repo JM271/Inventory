@@ -24,9 +24,13 @@ void checkUnchanged(Part? current, Part? expected) {
 }
 
 class CloudInventory {
-  CloudInventory(this.db, this.uid);
+  CloudInventory(this.db, this.uid, {this.email = ''});
   final FirebaseFirestore db;
   final String uid;
+
+  /// The signed-in user's email, saved with each stock change so the
+  /// history shows who made it.
+  final String email;
   static const workshopId = 'molenstraat';
   DocumentReference<Map<String, dynamic>> get workshop =>
       db.collection('workshops').doc(workshopId);
@@ -67,6 +71,7 @@ class CloudInventory {
       'beforeGarage': before?.garageQuantity ?? 0,
       'afterGarage': after?.garageQuantity ?? 0,
       'uid': uid,
+      if (email.isNotEmpty) 'email': email,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }

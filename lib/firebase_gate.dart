@@ -110,6 +110,7 @@ class _MembershipGateState extends State<_MembershipGate> {
   late final store = CloudInventory(
     FirebaseFirestore.instance,
     widget.user.uid,
+    email: widget.user.email ?? '',
   );
   late final membership = store.membership;
   late final Future<void> profile = FirebaseFirestore.instance

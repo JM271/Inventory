@@ -116,6 +116,8 @@ test('stock history is member-only, attributed and immutable', async () => {
   await assertSucceeds(setDoc(ref, change));
   await assertSucceeds(setDoc(doc(db, `${root}/stockChanges/garage`), { ...change, beforeGarage: 0, afterGarage: 2 }));
   await assertFails(setDoc(doc(db, `${root}/stockChanges/bad`), { ...change, afterGarage: -1 }));
+  await assertSucceeds(setDoc(doc(db, `${root}/stockChanges/named`), { ...change, email: 'editor@example.com' }));
+  await assertFails(setDoc(doc(db, `${root}/stockChanges/spoofed`), { ...change, email: 'admin@example.com' }));
   await assertSucceeds(getDocs(collection(db, `${root}/stockChanges`)));
   await assertFails(getDocs(collection(client('pending'), `${root}/stockChanges`)));
   await assertFails(updateDoc(ref, { afterWorkshop: 99 }));

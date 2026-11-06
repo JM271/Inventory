@@ -108,8 +108,9 @@ service cloud.firestore {
       match /stockChanges/{changeId} {
         allow read: if member();
         allow create: if member()
-          && request.resource.data.keys().hasOnly(['partId', 'name', 'productNumber', 'action', 'beforeWorkshop', 'afterWorkshop', 'beforeCar', 'afterCar', 'beforeGarage', 'afterGarage', 'uid', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['partId', 'name', 'productNumber', 'action', 'beforeWorkshop', 'afterWorkshop', 'beforeCar', 'afterCar', 'beforeGarage', 'afterGarage', 'uid', 'email', 'createdAt'])
           && request.resource.data.uid == request.auth.uid
+          && (!('email' in request.resource.data) || request.resource.data.email == request.auth.token.email)
           && request.resource.data.createdAt == request.time
           && request.resource.data.partId is string
           && request.resource.data.name is string

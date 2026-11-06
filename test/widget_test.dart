@@ -14,9 +14,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Letzte Bestandsänderungen'));
     await tester.pumpAndSettle();
-    expect(find.text('Recent stock changes'), findsOneWidget);
+    expect(find.text('Letzte Bestandsänderungen'), findsOneWidget);
     expect(
-      find.textContaining('No stock changes recorded yet.'),
+      find.textContaining('Noch keine Bestandsänderungen.'),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);

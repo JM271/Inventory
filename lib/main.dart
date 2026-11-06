@@ -303,6 +303,7 @@ class _InventoryPageState extends State<InventoryPage> {
         }
         final p = next ?? old!;
         additions.add({
+          'partId': p.id,
           'name': p.name,
           'productNumber': p.productIdentification,
           'action': old == null
@@ -354,6 +355,29 @@ class _InventoryPageState extends State<InventoryPage> {
     'Consumables' => Icons.water_drop_outlined,
     _ => Icons.pedal_bike_outlined,
   };
+
+  /// The stock change log, or one part's history; entries open their part.
+  Future<void> showHistory([Part? part]) => Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (_) => StockChangesPage(
+        cloud: widget.cloud,
+        admin: widget.admin,
+        partId: part?.id,
+        partName: part?.name,
+        onOpenPart: (id) {
+          final match = parts.where((p) => p.id == id).firstOrNull;
+          if (match != null) {
+            edit(match);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Dieser Artikel wurde gelöscht.')),
+            );
+          }
+        },
+      ),
+    ),
+  );
+
   Future<void> edit([Part? part]) async {
     if (cloudBusy) return;
     final baseline = {for (final p in parts) p.id: Part.fromJson(p.toJson())};
@@ -763,12 +787,7 @@ class _InventoryPageState extends State<InventoryPage> {
                       child: OutlinedButton.icon(
                         icon: const Icon(Icons.history),
                         label: const Text('Letzte Bestandsänderungen'),
-                        onPressed: () => Navigator.of(context).push<void>(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                StockChangesPage(cloud: widget.cloud),
-                          ),
-                        ),
+                        onPressed: () => showHistory(),
                       ),
                     ),
                     if (widget.cloud != null)
@@ -1027,12 +1046,19 @@ class _InventoryPageState extends State<InventoryPage> {
                                   ),
                                   onTap: () => edit(p),
                                   trailing: PopupMenuButton<String>(
-                                    onSelected: (v) =>
-                                        v == 'edit' ? edit(p) : remove(p),
+                                    onSelected: (v) => switch (v) {
+                                      'edit' => edit(p),
+                                      'history' => showHistory(p),
+                                      _ => remove(p),
+                                    },
                                     itemBuilder: (_) => const [
                                       PopupMenuItem(
                                         value: 'edit',
                                         child: Text('Edit part'),
+                                      ),
+                                      PopupMenuItem(
+                                        value: 'history',
+                                        child: Text('Verlauf'),
                                       ),
                                       PopupMenuItem(
                                         value: 'delete',
