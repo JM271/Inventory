@@ -147,6 +147,19 @@ test('offers are member-only and attributed to the writer', async () => {
   await assertSucceeds(deleteDoc(ref));
 });
 
+test('an offer discount is a percentage or an amount', async () => {
+  const ref = doc(client('editor'), `${root}/offers/o1`);
+  await assertSucceeds(setDoc(ref, offer('editor', { discount: { label: 'Rabatt', percent: 10 } })));
+  await assertSucceeds(setDoc(ref, offer('editor', { discount: { label: 'Rabatt', percent: 12.5 } })));
+  await assertSucceeds(setDoc(ref, offer('editor', { discount: { label: 'Fatbike-Kauf', amountCents: 5000 } })));
+  await assertFails(setDoc(ref, offer('editor', { discount: { label: 'Rabatt', percent: 0 } })));
+  await assertFails(setDoc(ref, offer('editor', { discount: { label: 'Rabatt', percent: 120 } })));
+  await assertFails(setDoc(ref, offer('editor', { discount: { label: 'Rabatt', amountCents: 12.5 } })));
+  await assertFails(setDoc(ref, offer('editor', { discount: { percent: 10, amountCents: 500 } })));
+  await assertFails(setDoc(ref, offer('editor', { discount: { label: 'Rabatt' } })));
+  await assertFails(setDoc(ref, offer('editor', { discount: 'viel' })));
+});
+
 test('bexio links are read-only for members and written by the function only', async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), `${root}/bexioOffers/o1`), { state: 'done', bexioId: 900, number: 'AN-00042' });

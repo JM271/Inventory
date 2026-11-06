@@ -29,8 +29,18 @@ service cloud.firestore {
     }
     // --- Molenstraat Angebote (repair offers app) ---
     function text(value, max) { return value is string && value.size() <= max; }
+    // Discount on a whole offer: a percentage or a fixed amount in cents.
+    function validOfferDiscount(d) {
+      return d is map && d.keys().hasOnly(['label', 'percent', 'amountCents'])
+        && text(d.get('label', ''), 200)
+        && ((d.keys().hasAll(['percent']) && !d.keys().hasAny(['amountCents'])
+             && d.percent is number && d.percent > 0 && d.percent <= 100)
+          || (d.keys().hasAll(['amountCents']) && !d.keys().hasAny(['percent'])
+             && d.amountCents is int && d.amountCents > 0));
+    }
     function validOffer(id, data) {
-      return data.keys().hasOnly(['id', 'number', 'createdAt', 'validUntil', 'status', 'customerName', 'customerPhone', 'customerEmail', 'bikeModel', 'frameNumber', 'problem', 'notes', 'lines', 'updatedAt', 'updatedBy'])
+      return data.keys().hasOnly(['id', 'number', 'createdAt', 'validUntil', 'status', 'customerName', 'customerPhone', 'customerEmail', 'bikeModel', 'frameNumber', 'problem', 'notes', 'lines', 'discount', 'updatedAt', 'updatedBy'])
+        && (!('discount' in data) || validOfferDiscount(data.discount))
         && data.keys().hasAll(['id', 'number', 'createdAt', 'validUntil', 'status', 'lines', 'updatedAt', 'updatedBy'])
         && data.id == id
         && data.number is string && data.number.matches('A-[0-9]{4}-[0-9]{3,6}')
