@@ -149,6 +149,13 @@ service cloud.firestore {
           && request.resource.data.items is list && request.resource.data.items.size() <= 500;
         allow delete: if false;
       }
+      // Link of an offer to its quote in bexio. Written only by the Cloud
+      // Function createBexioOffer of the offers app, which holds the bexio
+      // token; the apps just read it.
+      match /bexioOffers/{offerId} {
+        allow read: if member();
+        allow write: if false;
+      }
       // The shared product catalogue. The SKU is stored in upper case and
       // its encoded form is the document ID, so a SKU exists only once.
       match /products/{productId} {

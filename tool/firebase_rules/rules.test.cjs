@@ -147,6 +147,19 @@ test('offers are member-only and attributed to the writer', async () => {
   await assertSucceeds(deleteDoc(ref));
 });
 
+test('bexio links are read-only for members and written by the function only', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), `${root}/bexioOffers/o1`), { state: 'done', bexioId: 900, number: 'AN-00042' });
+  });
+  const db = client('editor');
+  await assertSucceeds(getDoc(doc(db, `${root}/bexioOffers/o1`)));
+  await assertSucceeds(getDocs(collection(db, `${root}/bexioOffers`)));
+  await assertFails(getDocs(collection(client('pending'), `${root}/bexioOffers`)));
+  await assertFails(setDoc(doc(db, `${root}/bexioOffers/o2`), { state: 'done', number: 'AN-1' }));
+  await assertFails(setDoc(doc(client('admin'), `${root}/bexioOffers/o1`), { state: 'failed' }));
+  await assertFails(deleteDoc(doc(client('admin'), `${root}/bexioOffers/o1`)));
+});
+
 test('offer numbers only increase', async () => {
   const db = client('editor');
   const ref = doc(db, `${root}/offerCounters/2026`);
