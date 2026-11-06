@@ -94,13 +94,39 @@ class _InventoryPageState extends State<InventoryPage> {
       p.quantityAt(stockSite!) > 0 ||
       p.minimumAt(stockSite!) > 0;
   bool lowOnly = false, loading = true, exportingReport = false;
+
+  /// Compact list that shows only the product names; remembered per device.
+  bool namesOnly = false;
   SharedPreferences? prefs;
-  StreamSubscription<dynamic>? cloudSubscription;
+  StreamSubscription<dynamic>? cloudSubscription, priceSubscription;
+
+  /// Catalogue prices in cents by upper-case SKU (bexio, shared with the
+  /// offers app). Parts carry no price themselves.
+  Map<String, int> prices = {};
+  void setPrices(Iterable<Map<String, dynamic>> rows) {
+    final next = {
+      for (final row in rows)
+        if ((row['sku'] as String? ?? '').trim().toUpperCase() case final sku
+            when sku.isNotEmpty)
+          sku: (row['priceCents'] as num? ?? 0).toInt(),
+    };
+    if (mounted) setState(() => prices = next);
+  }
+
+  /// The part's catalogue price in cents, or null if it has none.
+  int? priceOf(Part p) {
+    final cents =
+        prices[p.sku.trim().toUpperCase()] ??
+        prices[p.productNumber.toUpperCase()];
+    return cents == null || cents <= 0 ? null : cents;
+  }
+
   bool cloudBusy = false, fromCache = true;
 
   @override
   void dispose() {
     cloudSubscription?.cancel();
+    priceSubscription?.cancel();
     super.dispose();
   }
 
@@ -161,9 +187,37 @@ class _InventoryPageState extends State<InventoryPage> {
   void initState() {
     super.initState();
     load();
+    SharedPreferences.getInstance().then((p) {
+      final v = p.getBool('names_only_view') ?? false;
+      if (mounted && v != namesOnly) setState(() => namesOnly = v);
+    }, onError: (_) {});
+  }
+
+  void setNamesOnly(bool v) {
+    setState(() => namesOnly = v);
+    SharedPreferences.getInstance().then(
+      (p) => p.setBool('names_only_view', v),
+      onError: (_) => false,
+    );
+  }
+
+  Future<void> loadPrices() async {
+    try {
+      final bundled = await loadBundledProducts();
+      setPrices(bundled);
+      if (widget.cloud == null || !mounted) return;
+      priceSubscription = widget.cloud!.products.snapshots().listen((snapshot) {
+        if (snapshot.docs.isNotEmpty) {
+          setPrices(snapshot.docs.map((d) => d.data()));
+        }
+      }, onError: (Object e) => debugPrint('Preise nicht geladen: $e'));
+    } catch (e) {
+      debugPrint('Preise nicht geladen: $e');
+    }
   }
 
   Future<void> load() async {
+    loadPrices();
     if (widget.cloud != null) {
       // Fills the shared catalogue on first use; harmless afterwards.
       loadBundledProducts().then(widget.cloud!.seedProducts).catchError((
@@ -737,52 +791,6 @@ class _InventoryPageState extends State<InventoryPage> {
                           ],
                         ),
                       ),
-                    const Text(
-                      'Ready for the next repair.',
-                      style: TextStyle(
-                        fontSize: 28,
-                        height: 1.15,
-                        fontWeight: FontWeight.w800,
-                        color: ink,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Your parts, tools and workshop supplies in one place.',
-                      style: TextStyle(color: Colors.black54),
-                    ),
-                    const SizedBox(height: 24),
-                    Container(
-                      padding: const EdgeInsets.all(22),
-                      decoration: BoxDecoration(
-                        color: ink,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: metric(
-                              '${parts.where(atSite).length}',
-                              'Part types',
-                            ),
-                          ),
-                          Expanded(
-                            child: metric(
-                              '${parts.fold<int>(0, (sum, p) => sum + visibleQuantity(p))}',
-                              'Units in stock',
-                            ),
-                          ),
-                          Expanded(
-                            child: metric(
-                              '${parts.where(visibleLow).length}',
-                              'Need restocking',
-                              accent: true,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
                     SegmentedButton<StockSite?>(
                       segments: const [
                         ButtonSegment(value: null, label: Text('Alle')),
@@ -844,9 +852,22 @@ class _InventoryPageState extends State<InventoryPage> {
                           ),
                         ),
                         FilterChip(
-                          label: const Text('Low stock'),
+                          label: Text(
+                            'Low stock · ${parts.where(visibleLow).length}',
+                          ),
                           selected: lowOnly,
                           onSelected: (v) => setState(() => lowOnly = v),
+                        ),
+                        IconButton(
+                          tooltip: namesOnly
+                              ? 'Show details'
+                              : 'Show names only',
+                          icon: Icon(
+                            namesOnly
+                                ? Icons.view_agenda_outlined
+                                : Icons.view_list,
+                          ),
+                          onPressed: () => setNamesOnly(!namesOnly),
                         ),
                       ],
                     ),
@@ -898,138 +919,169 @@ class _InventoryPageState extends State<InventoryPage> {
                           ],
                         ),
                       ),
-                    ...filtered.map(
-                      (p) => Container(
-                        margin: const EdgeInsets.only(bottom: 10),
+                    if (namesOnly && filtered.isNotEmpty)
+                      Container(
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(18),
                           border: Border.all(color: const Color(0xFFE4E8E1)),
                         ),
-                        child: Column(
-                          children: [
-                            if (p.imageAsset.isNotEmpty)
-                              GestureDetector(
-                                onTap: () => edit(p),
-                                child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(
+                        clipBehavior: Clip.antiAlias,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: Column(
+                            children: [
+                              for (final (i, p) in filtered.indexed) ...[
+                                if (i > 0)
+                                  const Divider(
+                                    height: 1,
+                                    color: Color(0xFFE4E8E1),
+                                  ),
+                                ListTile(
+                                  dense: true,
+                                  title: Text(
+                                    p.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  trailing: priceOf(p) == null
+                                      ? null
+                                      : Text(
+                                          formatChf(priceOf(p)!),
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            color: ink,
+                                          ),
+                                        ),
+                                  onTap: () => edit(p),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    if (!namesOnly)
+                      ...filtered.map(
+                        (p) => Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: const Color(0xFFE4E8E1)),
+                          ),
+                          child: Column(
+                            children: [
+                              if (p.imageAsset.isNotEmpty)
+                                GestureDetector(
+                                  onTap: () => edit(p),
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      16,
+                                      16,
+                                      16,
+                                      0,
+                                    ),
+                                    child: ProductPhoto(
+                                      part: p,
+                                      size: double.infinity,
+                                      height: 320,
+                                    ),
+                                  ),
+                                ),
+                              Material(
+                                color: Colors.transparent,
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.fromLTRB(
                                     16,
-                                    16,
-                                    16,
+                                    8,
+                                    4,
                                     0,
                                   ),
-                                  child: ProductPhoto(
-                                    part: p,
-                                    size: double.infinity,
-                                    height: 320,
+                                  leading: p.imageAsset.isNotEmpty
+                                      ? null
+                                      : CircleAvatar(
+                                          backgroundColor: const Color(
+                                            0xFFEAF0E9,
+                                          ),
+                                          foregroundColor: green,
+                                          child: Icon(iconFor(p.category)),
+                                        ),
+                                  title: Text(
+                                    p.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    [
+                                      p.category,
+                                      if (priceOf(p) case final cents?)
+                                        formatChf(cents),
+                                      if (p.productIdentification.isNotEmpty)
+                                        'Product ID: ${p.productIdentification}',
+                                      if (p.supplierOrderNumber.isNotEmpty)
+                                        'Order no.: ${p.supplierOrderNumber}',
+                                      if (p.location.isNotEmpty) p.location,
+                                    ].join(' · '),
+                                  ),
+                                  onTap: () => edit(p),
+                                  trailing: PopupMenuButton<String>(
+                                    onSelected: (v) =>
+                                        v == 'edit' ? edit(p) : remove(p),
+                                    itemBuilder: (_) => const [
+                                      PopupMenuItem(
+                                        value: 'edit',
+                                        child: Text('Edit part'),
+                                      ),
+                                      PopupMenuItem(
+                                        value: 'delete',
+                                        child: Text('Delete part'),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
-                            Material(
-                              color: Colors.transparent,
-                              child: ListTile(
-                                contentPadding: const EdgeInsets.fromLTRB(
+                              for (final site in StockSite.values)
+                                if (stockSite == null || stockSite == site)
+                                  stockRow(p, site),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
                                   16,
-                                  8,
-                                  4,
                                   0,
+                                  12,
+                                  8,
                                 ),
-                                leading: p.imageAsset.isNotEmpty
-                                    ? null
-                                    : CircleAvatar(
-                                        backgroundColor: const Color(
-                                          0xFFEAF0E9,
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        'Gesamt: ${p.totalQuantity}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
                                         ),
-                                        foregroundColor: green,
-                                        child: Icon(iconFor(p.category)),
                                       ),
-                                title: Text(
-                                  p.name,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  [
-                                    p.category,
-                                    if (p.productIdentification.isNotEmpty)
-                                      'Product ID: ${p.productIdentification}',
-                                    if (p.supplierOrderNumber.isNotEmpty)
-                                      'Order no.: ${p.supplierOrderNumber}',
-                                    if (p.location.isNotEmpty) p.location,
-                                  ].join(' · '),
-                                ),
-                                onTap: () => edit(p),
-                                trailing: PopupMenuButton<String>(
-                                  onSelected: (v) =>
-                                      v == 'edit' ? edit(p) : remove(p),
-                                  itemBuilder: (_) => const [
-                                    PopupMenuItem(
-                                      value: 'edit',
-                                      child: Text('Edit part'),
                                     ),
-                                    PopupMenuItem(
-                                      value: 'delete',
-                                      child: Text('Delete part'),
+                                    TextButton.icon(
+                                      onPressed: p.totalQuantity == 0
+                                          ? null
+                                          : () => transfer(p),
+                                      icon: const Icon(Icons.swap_horiz),
+                                      label: const Text('Umlagern'),
                                     ),
                                   ],
                                 ),
                               ),
-                            ),
-                            for (final site in StockSite.values)
-                              if (stockSite == null || stockSite == site)
-                                stockRow(p, site),
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 0, 12, 8),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      'Gesamt: ${p.totalQuantity}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                  TextButton.icon(
-                                    onPressed: p.totalQuantity == 0
-                                        ? null
-                                        : () => transfer(p),
-                                    icon: const Icon(Icons.swap_horiz),
-                                    label: const Text('Umlagern'),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),
             ),
     );
   }
-
-  Widget metric(String value, String label, {bool accent = false}) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        value,
-        style: TextStyle(
-          color: accent ? const Color(0xFFECC58B) : Colors.white,
-          fontSize: 28,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-      const SizedBox(height: 5),
-      Text(
-        label,
-        style: const TextStyle(color: Color(0xFFCBD7CF), fontSize: 11),
-      ),
-    ],
-  );
 }
 
 class PartEditor extends StatefulWidget {
@@ -1299,4 +1351,13 @@ class _PartEditorState extends State<PartEditor> {
       ),
     ),
   );
+}
+
+/// Swiss franc amount from cents, e.g. 269000 → "CHF 2'690.00".
+String formatChf(int cents) {
+  final francs = (cents ~/ 100).toString().replaceAllMapped(
+    RegExp(r'\B(?=(\d{3})+$)'),
+    (_) => "'",
+  );
+  return 'CHF $francs.${(cents % 100).toString().padLeft(2, '0')}';
 }
