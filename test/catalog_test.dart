@@ -91,8 +91,8 @@ void main() {
   ) async {
     final products = (await tester.runAsync(loadProductCatalog))!;
     // The Molenstraat product list, the same as in the offers app.
-    expect(products.length, 54);
-    expect(products.map((p) => p.sku).toSet().length, 54);
+    expect(products.length, 56);
+    expect(products.map((p) => p.sku).toSet().length, 56);
     expect(products.every((p) => p.sku.startsWith('MS-')), isTrue);
     expect(products.every((p) => p.productNumber == p.sku), isTrue);
     for (final p in products) {
