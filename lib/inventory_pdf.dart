@@ -33,7 +33,7 @@ Future<Uint8List> buildInventoryPdf(
   String two(int value) => value.toString().padLeft(2, '0');
   final timestamp =
       '${two(date.day)}.${two(date.month)}.${date.year} ${two(date.hour)}:${two(date.minute)}:${two(date.second)}';
-  final green = PdfColor.fromHex('#286653');
+  final accent = PdfColors.black;
   document.addPage(
     pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
@@ -53,7 +53,7 @@ Future<Uint8List> buildInventoryPdf(
               style: pw.TextStyle(
                 fontSize: 18,
                 fontWeight: pw.FontWeight.bold,
-                color: green,
+                color: accent,
               ),
             ),
             pw.Text(timestamp, style: const pw.TextStyle(fontSize: 9)),
@@ -116,7 +116,7 @@ Future<Uint8List> buildInventoryPdf(
               fontWeight: pw.FontWeight.bold,
               fontSize: 9,
             ),
-            headerDecoration: pw.BoxDecoration(color: green),
+            headerDecoration: pw.BoxDecoration(color: accent),
             cellStyle: const pw.TextStyle(fontSize: 8),
             cellPadding: const pw.EdgeInsets.all(6),
             oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey100),

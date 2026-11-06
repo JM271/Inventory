@@ -1,59 +1,25 @@
-// Generates the Spoke app icon for iOS, Android and web.
+// Generates the app icon for iOS, Android and web from the Molenstraat
+// wheel (assets/brand/wheel.png): the wheel in white on black.
 //
 //   swift tool/app_icon/generate_icons.swift
 //
-// Run from the project root. The design is defined once below (on a
-// 1024 × 1024 canvas) and rendered into every size each platform needs,
-// plus an SVG master at tool/app_icon/spoke_logo.svg.
+// Run from the project root. Every size each platform needs is rendered
+// from the one source image, plus a 1024 px preview at
+// tool/app_icon/app_icon.png.
 
 import AppKit
 import CoreGraphics
 import Foundation
 
-// MARK: - Brand
+let black = CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 1)
+let white = CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 1)
 
-struct RGB {
-  let r, g, b: CGFloat
-  init(_ hex: UInt32) {
-    r = CGFloat((hex >> 16) & 0xFF) / 255
-    g = CGFloat((hex >> 8) & 0xFF) / 255
-    b = CGFloat(hex & 0xFF) / 255
-  }
-  var cg: CGColor { CGColor(srgbRed: r, green: g, blue: b, alpha: 1) }
-  var hex: String { String(format: "#%02X%02X%02X", Int(r * 255), Int(g * 255), Int(b * 255)) }
+guard
+  let source = NSImage(contentsOfFile: "assets/brand/wheel.png")?
+    .cgImage(forProposedRect: nil, context: nil, hints: nil)
+else {
+  fatalError("assets/brand/wheel.png not found - run from the project root")
 }
-
-let greenTop = RGB(0x2F7560)
-let greenBottom = RGB(0x1F5444)
-let cream = RGB(0xF5F6F2)
-let amber = RGB(0xECC58B)
-let ink = RGB(0x172C29)
-
-// MARK: - Geometry (1024 canvas, centre 512,512)
-
-let tireRadius: CGFloat = 330
-let tireWidth: CGFloat = 60
-let rimRadius: CGFloat = 282  // thin inner rim line
-let rimWidth: CGFloat = 12
-let spokeCount = 16
-let spokeWidth: CGFloat = 10
-let spokeHubRadius: CGFloat = 52
-// Offset = an odd number of spoke spacings so rim holes stay evenly spaced (3-cross).
-let spokeLace: CGFloat = 3 * 2 * .pi / CGFloat(spokeCount)
-let hubRadius: CGFloat = 80
-let axleRadius: CGFloat = 26
-
-func spokes() -> [(CGPoint, CGPoint)] {
-  (0..<spokeCount).map { i in
-    let a = CGFloat(i) * 2 * .pi / CGFloat(spokeCount) - .pi / 2
-    let d = i % 2 == 0 ? spokeLace : -spokeLace
-    let h = CGPoint(x: 512 + spokeHubRadius * cos(a), y: 512 + spokeHubRadius * sin(a))
-    let r = CGPoint(x: 512 + rimRadius * cos(a + d), y: 512 + rimRadius * sin(a + d))
-    return (h, r)
-  }
-}
-
-// MARK: - Rendering
 
 enum Variant {
   case ios  // opaque full square, OS applies the mask
@@ -62,44 +28,29 @@ enum Variant {
   case foreground  // wheel only, Android adaptive foreground (66/108 safe zone)
 }
 
-func drawBackground(_ c: CGContext, _ rect: CGRect) {
-  let g = CGGradient(
-    colorsSpace: CGColorSpace(name: CGColorSpace.sRGB),
-    colors: [greenTop.cg, greenBottom.cg] as CFArray, locations: [0, 1])!
-  c.drawLinearGradient(
-    g, start: CGPoint(x: 0, y: rect.minY), end: CGPoint(x: 0, y: rect.maxY), options: [])
-}
-
-func drawWheel(_ c: CGContext) {
-  let centre = CGPoint(x: 512, y: 512)
-  c.setLineCap(.round)
-
-  // Spokes
-  c.setStrokeColor(cream.cg.copy(alpha: 0.9)!)
-  c.setLineWidth(spokeWidth)
-  for (a, b) in spokes() {
-    c.move(to: a)
-    c.addLine(to: b)
-  }
-  c.strokePath()
-
-  // Rim
-  c.setStrokeColor(amber.cg)
-  c.setLineWidth(rimWidth)
-  c.addArc(center: centre, radius: rimRadius, startAngle: 0, endAngle: 2 * .pi, clockwise: false)
-  c.strokePath()
-
-  // Tyre
-  c.setStrokeColor(cream.cg)
-  c.setLineWidth(tireWidth)
-  c.addArc(center: centre, radius: tireRadius, startAngle: 0, endAngle: 2 * .pi, clockwise: false)
-  c.strokePath()
-
-  // Hub + axle
-  c.setFillColor(amber.cg)
-  c.fillEllipse(in: CGRect(x: 512 - hubRadius, y: 512 - hubRadius, width: hubRadius * 2, height: hubRadius * 2))
-  c.setFillColor(ink.cg)
-  c.fillEllipse(in: CGRect(x: 512 - axleRadius, y: 512 - axleRadius, width: axleRadius * 2, height: axleRadius * 2))
+/// Draws the wheel in white, `diameter` wide, centred on the 1024 canvas.
+func drawWheel(_ c: CGContext, diameter d: CGFloat) {
+  let rect = CGRect(x: 512 - d / 2, y: 512 - d / 2, width: d, height: d)
+  // Render the wheel's shape into a grey mask (black wheel → opaque), then
+  // fill white through it, so it works whatever background the PNG has.
+  let px = 1024
+  let gray = CGContext(
+    data: nil, width: px, height: px, bitsPerComponent: 8, bytesPerRow: 0,
+    space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue)!
+  gray.setFillColor(CGColor(gray: 1, alpha: 1))
+  gray.fill(CGRect(x: 0, y: 0, width: px, height: px))
+  gray.interpolationQuality = .high
+  gray.draw(source, in: CGRect(x: 0, y: 0, width: px, height: px))
+  // Image masks paint where the sample is 0 (black).
+  let provider = gray.makeImage()!.dataProvider!
+  let mask = CGImage(
+    maskWidth: px, height: px, bitsPerComponent: 8, bitsPerPixel: 8,
+    bytesPerRow: gray.bytesPerRow, provider: provider, decode: nil, shouldInterpolate: true)!
+  c.saveGState()
+  c.clip(to: rect, mask: mask)
+  c.setFillColor(white)
+  c.fill(rect)
+  c.restoreGState()
 }
 
 func render(_ variant: Variant, size: Int, to path: String) {
@@ -111,36 +62,29 @@ func render(_ variant: Variant, size: Int, to path: String) {
       ? CGImageAlphaInfo.noneSkipLast.rawValue : CGImageAlphaInfo.premultipliedLast.rawValue)!
   c.interpolationQuality = .high
   c.setShouldAntialias(true)
-  // Work in a top-left origin 1024 canvas.
-  c.translateBy(x: 0, y: s)
-  c.scaleBy(x: s / 1024, y: -s / 1024)
+  c.scaleBy(x: s / 1024, y: s / 1024)
   let full = CGRect(x: 0, y: 0, width: 1024, height: 1024)
 
-  var wheelScale: CGFloat = 1
   switch variant {
   case .ios:
-    drawBackground(c, full)
+    c.setFillColor(black)
+    c.fill(full)
+    drawWheel(c, diameter: 680)
   case .rounded:
     let inset = full.insetBy(dx: 40, dy: 40)
-    c.saveGState()
     c.addPath(CGPath(roundedRect: inset, cornerWidth: 210, cornerHeight: 210, transform: nil))
-    c.clip()
-    drawBackground(c, inset)
-    c.restoreGState()
-    wheelScale = 0.92
+    c.setFillColor(black)
+    c.fillPath()
+    drawWheel(c, diameter: 640)
   case .maskable:
-    drawBackground(c, full)
-    wheelScale = 0.98  // outer tyre edge = 360 * 0.98 ≈ 353 < 409 safe radius
+    c.setFillColor(black)
+    c.fill(full)
+    drawWheel(c, diameter: 640)  // radius 320 < 409 safe radius
   case .foreground:
-    wheelScale = 0.80  // 360 * 0.8 = 288 ≈ 30 dp of 108 dp, inside 33 dp safe radius
+    drawWheel(c, diameter: 560)  // radius 280 ≈ 30 dp of 108 dp, inside 33 dp
   }
-  c.translateBy(x: 512, y: 512)
-  c.scaleBy(x: wheelScale, y: wheelScale)
-  c.translateBy(x: -512, y: -512)
-  drawWheel(c)
 
-  let image = c.makeImage()!
-  let rep = NSBitmapImageRep(cgImage: image)
+  let rep = NSBitmapImageRep(cgImage: c.makeImage()!)
   let data = rep.representation(using: .png, properties: [:])!
   let url = URL(fileURLWithPath: path)
   try! FileManager.default.createDirectory(
@@ -149,40 +93,10 @@ func render(_ variant: Variant, size: Int, to path: String) {
   print("  \(path) (\(size)px)")
 }
 
-func writeSVG(to path: String) {
-  let lines = spokes().map {
-    String(format: "    <line x1=\"%.1f\" y1=\"%.1f\" x2=\"%.1f\" y2=\"%.1f\"/>", $0.0.x, $0.0.y, $0.1.x, $0.1.y)
-  }.joined(separator: "\n")
-  let svg = """
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-      <defs>
-        <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="\(greenTop.hex)"/>
-          <stop offset="1" stop-color="\(greenBottom.hex)"/>
-        </linearGradient>
-      </defs>
-      <rect x="40" y="40" width="944" height="944" rx="210" fill="url(#bg)"/>
-      <g transform="translate(512 512) scale(0.92) translate(-512 -512)">
-        <g stroke="\(cream.hex)" stroke-opacity="0.9" stroke-width="\(Int(spokeWidth))" stroke-linecap="round">
-    \(lines)
-        </g>
-        <circle cx="512" cy="512" r="\(Int(rimRadius))" fill="none" stroke="\(amber.hex)" stroke-width="\(Int(rimWidth))"/>
-        <circle cx="512" cy="512" r="\(Int(tireRadius))" fill="none" stroke="\(cream.hex)" stroke-width="\(Int(tireWidth))"/>
-        <circle cx="512" cy="512" r="\(Int(hubRadius))" fill="\(amber.hex)"/>
-        <circle cx="512" cy="512" r="\(Int(axleRadius))" fill="\(ink.hex)"/>
-      </g>
-    </svg>
-
-    """
-  try! svg.write(toFile: path, atomically: true, encoding: .utf8)
-  print("  \(path)")
-}
-
 // MARK: - Outputs
 
-print("Spoke app icon")
-writeSVG(to: "tool/app_icon/spoke_logo.svg")
-render(.rounded, size: 1024, to: "tool/app_icon/spoke_logo.png")
+print("Molenstraat app icon")
+render(.rounded, size: 1024, to: "tool/app_icon/app_icon.png")
 
 let ios = "ios/Runner/Assets.xcassets/AppIcon.appiconset"
 for (name, px) in [

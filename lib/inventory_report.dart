@@ -128,7 +128,7 @@ Uint8List buildInventoryReport(List<Part> parts, DateTime generatedAt) {
         .cellStyle = CellStyle(
       bold: true,
       textWrapping: TextWrapping.WrapText,
-      backgroundColorHex: ExcelColor.fromHexString('#286653'),
+      backgroundColorHex: ExcelColor.fromHexString('#000000'),
       fontColorHex: ExcelColor.white,
     );
   }

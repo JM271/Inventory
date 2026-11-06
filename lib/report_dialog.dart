@@ -239,7 +239,7 @@ class _ReportDialogState extends State<ReportDialog>
               const Icon(
                 Icons.cloud_done_outlined,
                 size: 42,
-                color: Colors.green,
+                color: Colors.black,
               ),
               const SizedBox(height: 12),
               const Text(

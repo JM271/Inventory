@@ -17,6 +17,7 @@ import 'pdf_report_page.dart';
 import 'part.dart';
 import 'product_catalog.dart';
 import 'test_stock.dart';
+import 'brand.dart';
 import 'report_dialog.dart';
 export 'part.dart';
 export 'product_catalog.dart' show categories;
@@ -29,8 +30,10 @@ void main() {
   runApp(const InventoryApp(useFirebase: true));
 }
 
-const ink = Color(0xFF172C29);
-const green = Color(0xFF286653);
+// Black and white like the Molenstraat logo; warnings use the error red.
+const ink = Colors.black;
+const paper = Color(0xFFF6F6F6);
+const line = Color(0xFFE2E2E2);
 
 class InventoryApp extends StatelessWidget {
   const InventoryApp({super.key, this.useFirebase = false});
@@ -41,18 +44,22 @@ class InventoryApp extends StatelessWidget {
     title: 'Spoke · Workshop inventory',
     theme: ThemeData(
       useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(seedColor: green),
-      scaffoldBackgroundColor: const Color(0xFFF5F6F2),
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: Colors.black,
+        dynamicSchemeVariant: DynamicSchemeVariant.monochrome,
+      ),
+      scaffoldBackgroundColor: paper,
       appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFFF5F6F2),
+        backgroundColor: paper,
         foregroundColor: ink,
+        surfaceTintColor: Colors.transparent,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Colors.white,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFDEE4DD)),
+          borderSide: const BorderSide(color: line),
         ),
       ),
     ),
@@ -557,7 +564,9 @@ class _InventoryPageState extends State<InventoryPage> {
                     : 'Min. ${p.minimumAt(site)}',
                 style: TextStyle(
                   fontSize: 12,
-                  color: p.lowAt(site) ? const Color(0xFFA55C1B) : green,
+                  color: p.lowAt(site)
+                      ? Theme.of(context).colorScheme.error
+                      : ink,
                 ),
               ),
             ],
@@ -634,11 +643,7 @@ class _InventoryPageState extends State<InventoryPage> {
           );
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'spoke',
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -1),
-        ),
+        title: const Align(alignment: Alignment.centerLeft, child: BrandLogo()),
         actions: [
           if (widget.cloud != null)
             PopupMenuButton<String>(
@@ -733,7 +738,7 @@ class _InventoryPageState extends State<InventoryPage> {
           ? null
           : FloatingActionButton.extended(
               onPressed: () => edit(),
-              backgroundColor: green,
+              backgroundColor: ink,
               foregroundColor: Colors.white,
               icon: const Icon(Icons.add),
               label: const Text('Add part'),
@@ -887,7 +892,7 @@ class _InventoryPageState extends State<InventoryPage> {
                             const Icon(
                               Icons.inventory_2_outlined,
                               size: 44,
-                              color: green,
+                              color: ink,
                             ),
                             const SizedBox(height: 16),
                             Text(
@@ -924,7 +929,7 @@ class _InventoryPageState extends State<InventoryPage> {
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: const Color(0xFFE4E8E1)),
+                          border: Border.all(color: line),
                         ),
                         clipBehavior: Clip.antiAlias,
                         child: Material(
@@ -933,10 +938,7 @@ class _InventoryPageState extends State<InventoryPage> {
                             children: [
                               for (final (i, p) in filtered.indexed) ...[
                                 if (i > 0)
-                                  const Divider(
-                                    height: 1,
-                                    color: Color(0xFFE4E8E1),
-                                  ),
+                                  const Divider(height: 1, color: line),
                                 ListTile(
                                   dense: true,
                                   title: Text(
@@ -968,7 +970,7 @@ class _InventoryPageState extends State<InventoryPage> {
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: const Color(0xFFE4E8E1)),
+                            border: Border.all(color: line),
                           ),
                           child: Column(
                             children: [
@@ -1001,10 +1003,8 @@ class _InventoryPageState extends State<InventoryPage> {
                                   leading: p.imageAsset.isNotEmpty
                                       ? null
                                       : CircleAvatar(
-                                          backgroundColor: const Color(
-                                            0xFFEAF0E9,
-                                          ),
-                                          foregroundColor: green,
+                                          backgroundColor: paper,
+                                          foregroundColor: ink,
                                           child: Icon(iconFor(p.category)),
                                         ),
                                   title: Text(
