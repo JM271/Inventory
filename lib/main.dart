@@ -966,15 +966,18 @@ class _InventoryPageState extends State<InventoryPage> {
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
-                                  trailing: priceOf(p) == null
-                                      ? null
-                                      : Text(
-                                          formatChf(priceOf(p)!),
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            color: ink,
-                                          ),
-                                        ),
+                                  // Stock at the selected site, or the
+                                  // total over all sites; red when low.
+                                  trailing: Text(
+                                    '${visibleQuantity(p)}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 16,
+                                      color: visibleLow(p)
+                                          ? Theme.of(context).colorScheme.error
+                                          : ink,
+                                    ),
+                                  ),
                                   onTap: () => edit(p),
                                 ),
                               ],

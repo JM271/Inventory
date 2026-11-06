@@ -354,10 +354,6 @@ class _StockChangesPageState extends State<StockChangesPage> {
           ),
         );
       }
-      final t = c.time;
-      final time = t == null
-          ? 'Speichert…'
-          : '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
       items.add(
         ListTile(
           leading: Icon(c.icon),
@@ -369,7 +365,6 @@ class _StockChangesPageState extends State<StockChangesPage> {
               if (c.count > 1) '${c.count} Buchungen',
             ].join(' · '),
           ),
-          trailing: Text(time),
           onTap: widget.onOpenPart == null || c.partId.isEmpty
               ? null
               : () => widget.onOpenPart!(c.partId),
