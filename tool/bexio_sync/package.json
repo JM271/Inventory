@@ -1,0 +1,8 @@
+{
+  "name": "inventory-bexio-sync",
+  "private": true,
+  "description": "Brings a bexio product export into the shared Firestore catalogue",
+  "dependencies": {
+    "firebase-tools": "^15.34.1"
+  }
+}
