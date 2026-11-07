@@ -42,8 +42,6 @@ class CloudInventory {
   /// The shared product catalogue, also used by the offers app.
   CollectionReference<Map<String, dynamic>> get products =>
       workshop.collection('products');
-  DocumentReference<Map<String, dynamic>> get catalogState =>
-      workshop.collection('catalogConfig').doc('state');
   CollectionReference<Map<String, dynamic>> get members =>
       workshop.collection('members');
 
@@ -227,28 +225,6 @@ class CloudInventory {
 
   /// Document ID of a product: its upper-case SKU, encoded.
   static String productId(String sku) => documentId(sku.trim().toUpperCase());
-
-  /// Fills the shared catalogue from the bundled product list, once. Does
-  /// nothing if it was filled before (by this or the offers app), so
-  /// products changed or deleted later are not brought back.
-  Future<bool> seedProducts(List<Map<String, dynamic>> bundled) =>
-      db.runTransaction((tx) async {
-        if ((await tx.get(catalogState)).exists) return false;
-        for (final row in bundled) {
-          final sku = (row['sku'] as String? ?? '').trim().toUpperCase();
-          if (sku.isEmpty) continue;
-          tx.set(products.doc(productId(sku)), {
-            'sku': sku,
-            'name': row['name'],
-            'category': row['category'],
-            'supplierSku': row['supplierSku'] ?? '',
-            'imageAsset': row['imageAsset'] ?? '',
-            'priceCents': row['priceCents'] ?? 0,
-          });
-        }
-        tx.set(catalogState, {'seeded': true});
-        return true;
-      });
 
   /// Adds a product to the shared catalogue; its SKU must be new.
   Future<void> saveProduct(Map<String, dynamic> row) async {

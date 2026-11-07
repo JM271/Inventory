@@ -7,7 +7,7 @@ Setup, first administrator and migration: [FIREBASE_SETUP.md](FIREBASE_SETUP.md)
 
 - Add, edit and delete parts with category, SKU and storage location.
 - Open the book icon in the app bar or choose **Aus Katalog wählen** in **Add a part** for the product catalog, searchable by our product ID, supplier number, name and category. Select a product, enter its actual quantity and save. Selecting an existing SKU opens its current stock instead of adding a duplicate.
-- **One catalog for Spoke and the offers app**: the Molenstraat product list from bexio (`MS-…` product IDs, supplier number, name, category, picture, sales price) lives in Firestore under `workshops/molenstraat/products`. Both apps read it from there; **New product** adds to it. The app bundles the same list (`assets/product_catalog.json`, identical to the offers app) only to fill the database on first use: the first app to start writes it once and sets `catalogConfig/state`, so products changed or deleted later are not brought back. Products added in earlier versions (`catalog` collection) still appear.
+- **One catalog for Spoke and the offers app**: the Molenstraat product list from bexio (`MS-…` product IDs, supplier number, name, category, picture, sales price) lives in Firestore under `workshops/molenstraat/products`. Both apps read it only from there; nothing is bundled in the apps, so catalogue changes need no app release. **New product** adds to it, and `tool/bexio_sync` brings in a new bexio export (new products, prices; see below). Products added in earlier versions (`catalog` collection) still appear.
 - **Lager auf Katalog umstellen** (account menu, admins): switches stock saved under the old supplier catalog (`OXV8-…`) to the catalog products. A preview lists every stock part with the suggested product: by our product ID, else by a supplier number that belongs to exactly one product. Change or clear any suggestion; `OXV8-02` (two controllers) needs a choice. Switched parts get the product's number, name, category and picture; quantities, minimums and location stay. Several parts for one product are merged (quantities added). Parts without a product stay as they are. Everything is written in one transaction with history entries; if a part changed meanwhile, nothing is written.
 - Catalog photos are preserved when editing and saving stock; pictures of the former supplier catalog stay in the app for parts that were not switched.
 - Receive or use stock with the + / − controls.
@@ -53,6 +53,18 @@ Katalog, Lagerbearbeitung und PDF-Berichte sind im Browser verfügbar.
 Für die PDF-Vorschau ist eine Internetverbindung zum Laden der PDF-Komponente
 nötig; Drucken und Speichern erfolgen über die Browserfunktionen.
 Microsoft-Anmeldung und OneDrive-Upload sind derzeit nur mobil unterstützt.
+
+## Catalogue from bexio
+
+The product catalogue is only in Firestore (`workshops/molenstraat/products`); neither app bundles it. To bring in a new bexio product export (Produkte → Export, Excel):
+
+```bash
+cd tool/bexio_sync && npm install   # once
+node tool/bexio_sync/sync.cjs ~/Downloads/bexio_export_….xlsx           # dry run: shows the differences
+node tool/bexio_sync/sync.cjs ~/Downloads/bexio_export_….xlsx --write   # adds new products, updates prices
+```
+
+Only `MS-` products are read. `--write` adds new products (a product with the same supplier number lends its photo) and updates prices. Names, categories and supplier numbers were partly tidied in the catalogue (e.g. the two Mini MS models), so the dry run lists those differences and only `--write --all` overwrites them. Nothing is deleted. Always use the newest export: an older one would put old prices back. The tool uses the login of the Firebase CLI (`firebase login`).
 
 ## Verify
 

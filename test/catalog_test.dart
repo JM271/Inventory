@@ -1,20 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inventory/main.dart';
 import 'package:inventory/product_catalog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'catalog_fixture.dart';
+
 void main() {
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(() => SharedPreferences.setMockInitialValues(withCatalog()));
 
   testWidgets('new catalog product validates, persists and can be selected', (
     tester,
   ) async {
-    await tester.runAsync(() async {
-      rootBundle.evict('assets/product_catalog.json');
-      await loadProductCatalog();
-    });
     Part? selected;
     await tester.pumpWidget(
       MaterialApp(
@@ -86,36 +83,19 @@ void main() {
     expect(selected!.id, product.id);
   });
 
-  testWidgets('all catalog products have unique SKUs and bundled photos', (
+  testWidgets('without Firebase only products added on the device', (
     tester,
   ) async {
-    final products = (await tester.runAsync(loadProductCatalog))!;
-    // The Molenstraat product list, the same as in the offers app.
-    expect(products.length, 56);
-    expect(products.map((p) => p.sku).toSet().length, 56);
-    expect(products.every((p) => p.sku.startsWith('MS-')), isTrue);
-    expect(products.every((p) => p.productNumber == p.sku), isTrue);
-    for (final p in products) {
-      expect(p.name, isNotEmpty);
-      expect(categories, contains(p.category));
-      if (p.imageAsset.isNotEmpty) {
-        expect(
-          (await rootBundle.load(p.imageAsset)).lengthInBytes,
-          greaterThan(0),
-        );
-      }
-    }
-    final old = products.first.toJson()..remove('imageAsset');
+    SharedPreferences.setMockInitialValues({});
+    expect(await tester.runAsync(loadProductCatalog), isEmpty);
+    final old = catalogFixture.first.toJson()..remove('imageAsset');
     expect(Part.fromJson(old).imageAsset, isEmpty);
   });
 
   testWidgets('editing can replace a product while preserving its stock', (
     tester,
   ) async {
-    final products = (await tester.runAsync(() async {
-      rootBundle.evict('assets/product_catalog.json');
-      return loadProductCatalog();
-    }))!;
+    final products = (await tester.runAsync(loadProductCatalog))!;
     final replacement = products.firstWhere((p) => p.sku == 'MS-SP-3009');
     final original = Part(
       id: 'original',
@@ -195,11 +175,9 @@ void main() {
   testWidgets('catalog selection preserves photo and quantity after reload', (
     tester,
   ) async {
-    await tester.runAsync(() async {
-      rootBundle.evict('assets/product_catalog.json');
-      await loadProductCatalog();
-    });
-    SharedPreferences.setMockInitialValues({'test_stock_added_v1': true});
+    SharedPreferences.setMockInitialValues(
+      withCatalog({'test_stock_added_v1': true}),
+    );
     await tester.pumpWidget(const InventoryApp());
     await tester.pumpAndSettle();
     await tester.tap(find.byType(FloatingActionButton));

@@ -70,7 +70,6 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
-    - assets/product_catalog.json
     - assets/products/
     - assets/brand/
 

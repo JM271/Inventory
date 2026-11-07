@@ -208,31 +208,20 @@ class _InventoryPageState extends State<InventoryPage> {
     );
   }
 
-  Future<void> loadPrices() async {
-    try {
-      final bundled = await loadBundledProducts();
-      setPrices(bundled);
-      if (widget.cloud == null || !mounted) return;
-      priceSubscription = widget.cloud!.products.snapshots().listen((snapshot) {
-        if (snapshot.docs.isNotEmpty) {
-          setPrices(snapshot.docs.map((d) => d.data()));
-        }
-      }, onError: (Object e) => debugPrint('Preise nicht geladen: $e'));
-    } catch (e) {
-      debugPrint('Preise nicht geladen: $e');
-    }
+  /// Prices live only in the shared catalogue; without Firebase there are
+  /// none.
+  void loadPrices() {
+    final cloud = widget.cloud;
+    if (cloud == null) return;
+    priceSubscription = cloud.products.snapshots().listen(
+      (snapshot) => setPrices(snapshot.docs.map((d) => d.data())),
+      onError: (Object e) => debugPrint('Preise nicht geladen: $e'),
+    );
   }
 
   Future<void> load() async {
     loadPrices();
     if (widget.cloud != null) {
-      // Fills the shared catalogue on first use; harmless afterwards.
-      loadBundledProducts().then(widget.cloud!.seedProducts).catchError((
-        Object e,
-      ) {
-        debugPrint('Katalog nicht eingerichtet: $e');
-        return false;
-      });
       cloudSubscription = widget.cloud!.parts
           .snapshots(includeMetadataChanges: true)
           .listen(

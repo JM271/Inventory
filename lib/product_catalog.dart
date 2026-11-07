@@ -5,7 +5,6 @@ import 'cloud_inventory.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'part.dart';
 
@@ -28,18 +27,6 @@ const categories = [
 
 const _customCatalogKey = 'custom_product_catalog_v1';
 
-/// The Molenstraat product list bundled with the app (bexio export, same
-/// file as in the offers app). With Firebase it only fills the shared
-/// catalogue once; afterwards the catalogue in the database applies.
-///
-/// Not cached: a cached load stays bound to the zone that started it.
-Future<List<Map<String, dynamic>>> loadBundledProducts() async => [
-  for (final row in jsonDecode(
-    await rootBundle.loadString('assets/product_catalog.json', cache: false),
-  ) as List)
-    Map<String, dynamic>.from(row as Map),
-];
-
 /// A product of the shared catalogue as a template for a stock part: our
 /// product ID is the SKU, the supplier number the order number.
 Part productPart(Map<String, dynamic> row) {
@@ -55,16 +42,14 @@ Part productPart(Map<String, dynamic> row) {
   );
 }
 
-/// The shared product catalogue: the products in the database (the bundled
-/// list until they are seeded) plus products added in earlier versions.
+/// The shared product catalogue: the products in the database (kept in sync
+/// with bexio by tool/bexio_sync) plus products added in earlier versions.
+/// Without Firebase only the products added on this device.
 Future<List<Part>> loadProductCatalog({CloudInventory? cloud}) async {
-  final bundled = (await loadBundledProducts()).map(productPart).toList();
   if (cloud != null) {
     final shared = await cloud.products.get();
     final products =
-        shared.docs.isEmpty
-              ? bundled
-              : shared.docs.map((doc) => productPart(doc.data())).toList()
+        shared.docs.map((doc) => productPart(doc.data())).toList()
           ..sort((a, b) => a.sku.compareTo(b.sku));
     final known = {for (final p in products) p.sku.toUpperCase()};
     final custom = await cloud.catalog.get();
@@ -78,7 +63,7 @@ Future<List<Part>> loadProductCatalog({CloudInventory? cloud}) async {
   }
   final prefs = await SharedPreferences.getInstance();
   final custom = jsonDecode(prefs.getString(_customCatalogKey) ?? '[]') as List;
-  return [...bundled, ...custom.map((row) => Part.fromJson(row))];
+  return [for (final row in custom) Part.fromJson(row)];
 }
 
 class ProductPhoto extends StatelessWidget {

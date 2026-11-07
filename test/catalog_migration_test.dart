@@ -181,28 +181,8 @@ void main() {
     );
   });
 
-  test('the shared catalogue is seeded once', () async {
-    final db = FakeFirebaseFirestore();
-    final cloud = CloudInventory(db, 'editor');
-    final bundled = [
-      {
-        'sku': 'ms-sp-3009',
-        'name': '3 in 1 switch',
-        'category': 'Spare Parts',
-        'supplierSku': 'OXV8-05',
-        'priceCents': 4500,
-      },
-    ];
-    expect(await cloud.seedProducts(bundled), isTrue);
-    final doc = await cloud.products
-        .doc(CloudInventory.productId('MS-SP-3009'))
-        .get();
-    expect(doc.data()!['sku'], 'MS-SP-3009');
-    expect(doc.data()!['priceCents'], 4500);
-    await doc.reference.delete();
-    expect(await cloud.seedProducts(bundled), isFalse);
-    expect((await cloud.products.get()).docs, isEmpty);
-
+  test('a new catalogue product needs a new SKU', () async {
+    final cloud = CloudInventory(FakeFirebaseFirestore(), 'editor');
     await cloud.saveProduct({
       'sku': 'MS-SP-9001',
       'name': 'New',
