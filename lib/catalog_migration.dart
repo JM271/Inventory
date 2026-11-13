@@ -110,7 +110,7 @@ List<PartChange> buildCatalogMigration(
         : (_key(old.sku) != key ? old.sku : '');
     final after = Part.fromJson(keeper.toJson())
       ..sku = target.sku
-      ..productNumber = target.sku
+      ..productNumber = target.productNumber
       ..orderNumber = supplier
       ..name = target.name
       ..category = target.category
@@ -140,7 +140,7 @@ int _max(int a, int b) => a > b ? a : b;
 bool _isUpToDate(Part part, Part product) =>
     part.name == product.name &&
     part.category == product.category &&
-    _key(part.productNumber) == _key(product.sku) &&
+    _key(part.productNumber) == _key(product.productNumber) &&
     (product.orderNumber.isEmpty ||
         _key(part.orderNumber) == _key(product.orderNumber)) &&
     (product.imageAsset.isEmpty || part.imageAsset == product.imageAsset);

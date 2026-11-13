@@ -183,7 +183,9 @@ async function main() {
     if (b.supplierSku && b.supplierSku !== (p.supplierSku ?? '')) fields.supplierSku = b.supplierSku;
     if (Object.keys(fields).length) others.push({ sku: b.sku, fields, live: p });
   }
-  const missing = [...live.keys()].filter((sku) => !bexio.has(sku));
+  // Supplier products without an MS- code (stored under their supplier
+  // number) are never in the export.
+  const missing = [...live.keys()].filter((sku) => sku.startsWith('MS-') && !bexio.has(sku));
 
   console.log(`New products (${added.length}):`);
   for (const b of added) console.log(`  + ${b.sku}  ${b.name}  ${chf(b.priceCents)}`);

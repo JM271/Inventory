@@ -28,16 +28,19 @@ const categories = [
 const _customCatalogKey = 'custom_product_catalog_v1';
 
 /// A product of the shared catalogue as a template for a stock part: our
-/// product ID is the SKU, the supplier number the order number.
+/// product ID is the SKU, the supplier number the order number. A supplier
+/// product without a product ID of ours is stored under its supplier number
+/// (SKU and supplier number are the same) and has no product ID.
 Part productPart(Map<String, dynamic> row) {
   final sku = (row['sku'] as String? ?? '').trim().toUpperCase();
+  final supplier = (row['supplierSku'] as String? ?? '').trim();
   return Part(
     id: 'catalog-$sku',
     name: (row['name'] as String? ?? '').trim(),
     category: (row['category'] as String? ?? '').trim(),
     sku: sku,
-    productNumber: sku,
-    orderNumber: (row['supplierSku'] as String? ?? '').trim(),
+    productNumber: supplier.toUpperCase() == sku ? '' : sku,
+    orderNumber: supplier,
     imageAsset: (row['imageAsset'] as String? ?? '').trim(),
   );
 }
@@ -48,9 +51,8 @@ Part productPart(Map<String, dynamic> row) {
 Future<List<Part>> loadProductCatalog({CloudInventory? cloud}) async {
   if (cloud != null) {
     final shared = await cloud.products.get();
-    final products =
-        shared.docs.map((doc) => productPart(doc.data())).toList()
-          ..sort((a, b) => a.sku.compareTo(b.sku));
+    final products = shared.docs.map((doc) => productPart(doc.data())).toList()
+      ..sort((a, b) => a.sku.compareTo(b.sku));
     final known = {for (final p in products) p.sku.toUpperCase()};
     final custom = await cloud.catalog.get();
     return [
@@ -245,7 +247,12 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                                     Text(
                                       [
                                         p.name,
-                                        if (p.supplierOrderNumber.isNotEmpty)
+                                        // Without a product ID of ours the
+                                        // order number is the title above.
+                                        if (p
+                                                .productIdentification
+                                                .isNotEmpty &&
+                                            p.supplierOrderNumber.isNotEmpty)
                                           'Order no.: ${p.supplierOrderNumber}',
                                       ].join('\n'),
                                     ),

@@ -181,6 +181,52 @@ void main() {
     );
   });
 
+  test(
+    'a supplier product without our product ID keeps its stock as it is',
+    () {
+      // In the catalogue under its supplier number: SKU and supplier number
+      // are the same.
+      final mirror = productPart({
+        'sku': 'RF-M09',
+        'supplierSku': 'RF-M09',
+        'name': 'Rearview mirror',
+        'category': 'Cockpit',
+      });
+      expect(mirror.id, 'catalog-RF-M09');
+      expect(mirror.productIdentification, '');
+      expect(mirror.supplierOrderNumber, 'RF-M09');
+
+      final parts = stock();
+      final withMirror = [...catalog, mirror];
+      // Stock saved from the old supplier catalogue is already this product.
+      expect(
+        planCatalogMigration(
+          parts,
+          withMirror,
+        ).where((r) => r.part.id == 'catalog-RF-M09'),
+        isEmpty,
+      );
+
+      // A part switched to it gets the supplier number, not a product ID.
+      final renamed = Part(
+        id: 'custom-2',
+        name: 'Spiegel',
+        category: 'Other',
+        sku: 'SPIEGEL',
+        productNumber: '',
+        orderNumber: 'RF-M09',
+        quantity: 2,
+      );
+      final rows = planCatalogMigration([renamed], withMirror);
+      expect(rows.single.target?.sku, 'RF-M09');
+      final after = buildCatalogMigration(rows, [renamed]).single.after!;
+      expect(after.sku, 'RF-M09');
+      expect(after.productIdentification, '');
+      expect(after.supplierOrderNumber, 'RF-M09');
+      expect(after.quantity, 2);
+    },
+  );
+
   test('a new catalogue product needs a new SKU', () async {
     final cloud = CloudInventory(FakeFirebaseFirestore(), 'editor');
     await cloud.saveProduct({
