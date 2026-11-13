@@ -19,6 +19,91 @@ String _siteStatus(Part p, StockSite site) => p.lowAt(site)
 
 String _identifier(String value) => value.isEmpty ? 'nicht hinterlegt' : value;
 
+/// The order list as a PDF: one row per product with the number to order
+/// it by (the supplier's, else ours) and the quantity.
+Future<Uint8List> buildOrderListPdf(
+  List<({Part product, int quantity})> lines,
+  DateTime generatedAt,
+) async {
+  final document = pw.Document(title: 'Order list', author: 'Spoke');
+  final date = generatedAt.toLocal();
+  String two(int value) => value.toString().padLeft(2, '0');
+  final stamp = '${two(date.day)}.${two(date.month)}.${date.year}';
+  document.addPage(
+    pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(30),
+      maxPages: 1000,
+      theme: pw.ThemeData.withFont(
+        base: pw.Font.helvetica(),
+        bold: pw.Font.helveticaBold(),
+      ),
+      header: (_) => pw.Padding(
+        padding: const pw.EdgeInsets.only(bottom: 12),
+        child: pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text(
+              'Molenstraat | Order list',
+              style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.Text(stamp, style: const pw.TextStyle(fontSize: 9)),
+          ],
+        ),
+      ),
+      footer: (context) => pw.Align(
+        alignment: pw.Alignment.centerRight,
+        child: pw.Text(
+          'Page ${context.pageNumber} / ${context.pagesCount}',
+          style: const pw.TextStyle(fontSize: 9),
+        ),
+      ),
+      build: (_) => [
+        pw.Text(
+          '${lines.length} products  |  ${lines.fold<int>(0, (sum, l) => sum + l.quantity)} pieces',
+          style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+        ),
+        pw.SizedBox(height: 14),
+        if (lines.isEmpty) pw.Text('No products on the order list.'),
+        if (lines.isNotEmpty)
+          pw.TableHelper.fromTextArray(
+            headers: ['Model', 'Product name', 'Our product ID', 'Quantity'],
+            data: [
+              for (final (:product, :quantity) in lines)
+                [
+                  _pdfText(
+                    product.supplierOrderNumber.isNotEmpty
+                        ? product.supplierOrderNumber
+                        : product.productIdentification,
+                  ),
+                  _pdfText(product.name),
+                  _pdfText(product.productIdentification),
+                  '$quantity',
+                ],
+            ],
+            columnWidths: {
+              0: const pw.FlexColumnWidth(1.6),
+              1: const pw.FlexColumnWidth(5),
+              2: const pw.FlexColumnWidth(1.8),
+              3: const pw.FlexColumnWidth(1.1),
+            },
+            headerStyle: pw.TextStyle(
+              color: PdfColors.white,
+              fontWeight: pw.FontWeight.bold,
+              fontSize: 9,
+            ),
+            headerDecoration: const pw.BoxDecoration(color: PdfColors.black),
+            cellStyle: const pw.TextStyle(fontSize: 9),
+            cellPadding: const pw.EdgeInsets.all(6),
+            oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
+            cellAlignments: {3: pw.Alignment.centerRight},
+          ),
+      ],
+    ),
+  );
+  return document.save();
+}
+
 Future<Uint8List> buildInventoryPdf(
   List<Part> parts,
   DateTime generatedAt,

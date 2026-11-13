@@ -228,3 +228,20 @@ test('the shared product catalogue is validated and seeded once', async () => {
   await assertFails(deleteDoc(state));
   await assertFails(setDoc(doc(db, `${root}/catalogConfig/other`), { seeded: true }));
 });
+
+test('members share the order list', async () => {
+  const db = client('editor');
+  const line = doc(db, `${root}/orderList/T1hWOC0wOA`);
+  await assertSucceeds(setDoc(line, { sku: 'OXV8-08', quantity: 3 }));
+  await assertSucceeds(setDoc(line, { sku: 'OXV8-08', quantity: 5 }));
+  await assertSucceeds(getDocs(collection(client('admin'), `${root}/orderList`)));
+  await assertFails(setDoc(line, { sku: 'OXV8-08', quantity: 0 }));
+  await assertFails(setDoc(line, { sku: 'OXV8-08', quantity: 2.5 }));
+  await assertFails(setDoc(line, { sku: 'OXV8-08', quantity: 100001 }));
+  await assertFails(setDoc(line, { sku: '', quantity: 1 }));
+  await assertFails(setDoc(line, { sku: 'OXV8-08' }));
+  await assertFails(setDoc(line, { sku: 'OXV8-08', quantity: 1, note: 'urgent' }));
+  await assertFails(getDocs(collection(client('pending'), `${root}/orderList`)));
+  await assertFails(setDoc(doc(client('pending'), `${root}/orderList/x`), { sku: 'X', quantity: 1 }));
+  await assertSucceeds(deleteDoc(line));
+});

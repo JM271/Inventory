@@ -239,6 +239,31 @@ class CloudInventory {
     });
   }
 
+  /// The order list: one document per catalogue product to order, with the
+  /// quantity. Shared by all members.
+  CollectionReference<Map<String, dynamic>> get orderList =>
+      workshop.collection('orderList');
+
+  /// Puts [quantity] of a product on the order list; 0 takes it off.
+  Future<void> setOrderQuantity(String sku, int quantity) {
+    final ref = orderList.doc(productId(sku));
+    return quantity <= 0
+        ? ref.delete()
+        : ref.set({'sku': sku.trim().toUpperCase(), 'quantity': quantity});
+  }
+
+  /// Empties the order list, e.g. after the order was sent.
+  Future<void> clearOrderList() async {
+    final docs = (await orderList.get()).docs;
+    for (var i = 0; i < docs.length; i += 400) {
+      final batch = db.batch();
+      for (final doc in docs.skip(i).take(400)) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
+  }
+
   Future<void> saveCatalogProduct(Part part) async {
     // A normalized SKU is the key so simultaneous creates cannot duplicate it.
     final ref = catalog.doc(documentId(part.sku.trim().toLowerCase()));

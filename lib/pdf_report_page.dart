@@ -20,7 +20,9 @@ class PdfReportPage extends StatefulWidget {
     required this.initialReport,
     required this.onRefresh,
     this.previewBuilder,
+    this.title = 'Lagerbericht · PDF',
   });
+  final String title;
   final PdfReportSnapshot initialReport;
   final Future<PdfReportSnapshot> Function() onRefresh;
   final Widget Function(PdfReportSnapshot)? previewBuilder;
@@ -67,7 +69,7 @@ class _PdfReportPageState extends State<PdfReportPage> {
         '${two(date.day)}.${two(date.month)}.${date.year} ${two(date.hour)}:${two(date.minute)}:${two(date.second)}';
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lagerbericht · PDF'),
+        title: Text(widget.title),
         actions: [
           IconButton(
             tooltip: 'PDF aktualisieren',

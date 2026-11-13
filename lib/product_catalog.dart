@@ -6,6 +6,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import 'order_list.dart';
 import 'part.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -102,6 +103,9 @@ class ProductCatalogPage extends StatefulWidget {
 class _ProductCatalogPageState extends State<ProductCatalogPage> {
   late Future<List<Part>> catalog;
   CloudInventory? cloud;
+
+  /// The products marked to be ordered; shown and changed on every row.
+  late OrderList orders;
   final catalogSubscriptions = <StreamSubscription<dynamic>>[];
   bool initialized = false;
 
@@ -110,8 +114,10 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
     super.didChangeDependencies();
     final next = CloudInventoryScope.of(context);
     if (!initialized || next != cloud) {
+      if (initialized) orders.dispose();
       initialized = true;
       cloud = next;
+      orders = OrderList(cloud);
       for (final s in catalogSubscriptions) {
         s.cancel();
       }
@@ -144,10 +150,17 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
     for (final s in catalogSubscriptions) {
       s.cancel();
     }
+    orders.dispose();
     super.dispose();
   }
 
   String query = '';
+
+  Future<void> openOrderList() => Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (_) => OrderListPage(orders: orders, catalog: catalog),
+    ),
+  );
 
   Future<void> createProduct() async {
     final products = await catalog;
@@ -165,7 +178,23 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Product catalog')),
+    appBar: AppBar(
+      title: const Text('Product catalog'),
+      actions: [
+        ListenableBuilder(
+          listenable: orders,
+          builder: (context, _) => IconButton(
+            tooltip: 'Order list',
+            onPressed: openOrderList,
+            icon: Badge(
+              isLabelVisible: orders.length > 0,
+              label: Text('${orders.length}'),
+              child: const Icon(Icons.shopping_cart_outlined),
+            ),
+          ),
+        ),
+      ],
+    ),
     floatingActionButton: FloatingActionButton.extended(
       onPressed: createProduct,
       icon: const Icon(Icons.add),
@@ -259,6 +288,8 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
                                   ],
                                 ),
                               ),
+                              const SizedBox(width: 8),
+                              OrderQuantityControl(orders: orders, sku: p.sku),
                               const Icon(Icons.chevron_right),
                             ],
                           ),
