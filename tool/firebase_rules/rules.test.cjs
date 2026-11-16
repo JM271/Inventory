@@ -229,6 +229,20 @@ test('the shared product catalogue is validated and seeded once', async () => {
   await assertFails(setDoc(doc(db, `${root}/catalogConfig/other`), { seeded: true }));
 });
 
+test('product pictures are read by members and written by the tool only', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), `${root}/productImages/oxv8-05.png`), { contentType: 'image/png', sha256: 'abc' });
+  });
+  const picture = doc(client('editor'), `${root}/productImages/oxv8-05.png`);
+  await assertSucceeds(getDoc(picture));
+  await assertSucceeds(getDocs(collection(client('admin'), `${root}/productImages`)));
+  await assertFails(getDoc(doc(client('pending'), `${root}/productImages/oxv8-05.png`)));
+  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), `${root}/productImages/oxv8-05.png`)));
+  await assertFails(updateDoc(picture, { sha256: 'def' }));
+  await assertFails(setDoc(doc(client('admin'), `${root}/productImages/new.png`), { contentType: 'image/png' }));
+  await assertFails(deleteDoc(doc(client('admin'), `${root}/productImages/oxv8-05.png`)));
+});
+
 test('members share the order list', async () => {
   const db = client('editor');
   const line = doc(db, `${root}/orderList/T1hWOC0wOA`);

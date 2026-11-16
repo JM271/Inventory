@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'brand.dart';
 import 'cloud_inventory.dart';
 import 'firebase_config.dart';
+import 'product_images.dart';
 
 String cloudError(Object error) {
   if (error is InventoryConflict) return error.message;
@@ -117,6 +118,18 @@ class _MembershipGateState extends State<_MembershipGate> {
       .collection('users')
       .doc(widget.user.uid)
       .set({'email': widget.user.email ?? ''});
+
+  @override
+  void initState() {
+    super.initState();
+    ProductImages.use(store.productImages);
+  }
+
+  @override
+  void dispose() {
+    ProductImages.use(null);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => FutureBuilder<void>(

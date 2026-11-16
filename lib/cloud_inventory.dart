@@ -42,6 +42,11 @@ class CloudInventory {
   /// The shared product catalogue, also used by the offers app.
   CollectionReference<Map<String, dynamic>> get products =>
       workshop.collection('products');
+
+  /// The products' pictures, one document per file name of an imageAsset.
+  /// Saved by tool/product_images; the app only reads them.
+  CollectionReference<Map<String, dynamic>> get productImages =>
+      workshop.collection('productImages');
   CollectionReference<Map<String, dynamic>> get members =>
       workshop.collection('members');
 

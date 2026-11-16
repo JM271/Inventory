@@ -3,11 +3,13 @@ import 'dart:async';
 import 'cloud_inventory.dart';
 
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
 import 'order_list.dart';
 import 'part.dart';
+import 'product_images.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -79,17 +81,41 @@ class ProductPhoto extends StatelessWidget {
   final Part part;
   final double size;
   final double? height;
+
+  /// The picture bundled with the app: shown without Firebase and for a
+  /// picture the database does not have.
+  Widget get _bundled => Image.asset(
+    part.imageAsset,
+    fit: BoxFit.contain,
+    errorBuilder: (_, error, stack) => const Icon(Icons.broken_image_outlined),
+  );
+
   @override
   Widget build(BuildContext context) => SizedBox(
     width: size,
     height: height ?? size,
     child: part.imageAsset.isEmpty
         ? const Icon(Icons.inventory_2_outlined)
-        : Image.asset(
-            part.imageAsset,
-            fit: BoxFit.contain,
-            errorBuilder: (_, error, stack) =>
-                const Icon(Icons.broken_image_outlined),
+        : !ProductImages.enabled
+        ? _bundled
+        : FutureBuilder<Uint8List?>(
+            // Keyed by the picture, so a row reused for another product
+            // does not show the previous one while loading.
+            key: ValueKey(ProductImages.nameOf(part.imageAsset)),
+            future: ProductImages.load(part.imageAsset),
+            builder: (context, picture) {
+              if (picture.connectionState != ConnectionState.done) {
+                return const SizedBox.shrink();
+              }
+              final bytes = picture.data;
+              if (bytes == null) return _bundled;
+              return Image.memory(
+                bytes,
+                fit: BoxFit.contain,
+                gaplessPlayback: true,
+                errorBuilder: (_, error, stack) => _bundled,
+              );
+            },
           ),
   );
 }

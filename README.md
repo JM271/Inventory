@@ -12,6 +12,7 @@ Setup, first administrator and migration: [FIREBASE_SETUP.md](FIREBASE_SETUP.md)
 - **Order list**: in the product catalog, tap **Order** on every product you need; − / + change the quantity and tapping the number lets you type it. The cart icon in the catalog's app bar shows how many products are marked and opens the order list: change or remove products, copy the list as text (number, quantity and name separated by tabs, for a mail or Excel), open it as a PDF, or empty it after ordering. Products are listed under the number they are ordered by: the supplier number, else our product ID. The list is shared in Firestore (`workshops/molenstraat/orderList`), so everyone adds to the same one; it does not change stock. Deploy the updated `firestore.rules` before using it.
 - **Lager auf Katalog umstellen** (account menu, admins): switches stock saved under the old supplier catalog (`OXV8-…`) to the catalog products. A preview lists every stock part with the suggested product: by our product ID, else by a supplier number that belongs to exactly one product. Change or clear any suggestion; `OXV8-02` (two controllers) needs a choice. Switched parts get the product's number, name, category and picture; quantities, minimums and location stay. Several parts for one product are merged (quantities added). Parts without a product stay as they are. Everything is written in one transaction with history entries; if a part changed meanwhile, nothing is written.
 - Catalog photos are preserved when editing and saving stock; pictures of the former supplier catalog stay in the app for parts that were not switched.
+- **Product pictures** are in Firestore too (`workshops/molenstraat/productImages`), so a new or changed picture shows up without an app release (see below). The pictures bundled with the app are only the fallback: for a picture the database does not have, and without a connection.
 - Receive or use stock with the + / − controls.
 - Search by name, SKU or location and filter by category or low stock.
 - Minimum stock levels flag parts that need restocking (quantity ≤ minimum).
@@ -67,6 +68,17 @@ node tool/bexio_sync/sync.cjs ~/Downloads/bexio_export_….xlsx --write   # adds
 ```
 
 Only `MS-` products are read; supplier products without an `MS-` number are left alone. `--write` adds new products (a product with the same supplier number lends its photo) and updates prices. Names, categories and supplier numbers were partly tidied in the catalogue (e.g. the two Mini MS models), so the dry run lists those differences and only `--write --all` overwrites them. Nothing is deleted. Always use the newest export: an older one would put old prices back. The tool uses the login of the Firebase CLI (`firebase login`).
+
+## Product pictures
+
+The app reads a product's picture from Firestore (`workshops/molenstraat/productImages`): one document per picture, named like the file in the product's `imageAsset` (`assets/products/oxv8-13.png` → document `oxv8-13.png`). Products that share a picture share the document. To add or replace pictures, put the files (PNG or JPEG, at most 900 KB each) in `assets/products` and run:
+
+```bash
+node tool/product_images/upload.cjs           # dry run: new, changed and unchanged pictures
+node tool/product_images/upload.cjs --write   # saves the new and changed ones
+```
+
+Nothing is deleted. The tool uses the login of the Firebase CLI and the `firebase-tools` installed for `tool/bexio_sync`. Only the tool writes pictures; members read them (deploy the updated `firestore.rules` once, otherwise the app keeps showing its bundled pictures). A picture is read once per app start, so a changed one appears after the app is reopened. The offers app reads the same pictures.
 
 ## Verify
 
