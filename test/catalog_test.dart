@@ -42,7 +42,6 @@ void main() {
     await tester.tap(find.text('Save product'));
     await tester.pumpAndSettle();
     expect(find.text('Enter a product name'), findsOneWidget);
-    expect(find.text('Enter our product ID'), findsOneWidget);
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Product name'),
       'Custom brake',
@@ -81,6 +80,74 @@ void main() {
     await tester.tap(find.text('CUSTOM-001').last);
     await tester.pumpAndSettle();
     expect(selected!.id, product.id);
+  });
+
+  test('a new product without a number is kept under its name', () {
+    String sku(String id, String supplier, String name) =>
+        newProductSku(productId: id, supplierNumber: supplier, name: name);
+    expect(sku(' MS-SP-9001 ', '577', 'Loctite 243'), 'MS-SP-9001');
+    expect(sku('', ' 577 ', 'Loctite 243'), '577');
+    expect(sku('', '', ' Loctite 243 (50 ml) '), 'LOCTITE-243-50-ML');
+    expect(sku('', '', 'Plastic gear grease'), 'PLASTIC-GEAR-GREASE');
+    expect(sku('', '', 'Kettenöl'), 'KETTENÖL');
+    expect(sku('', '', ' - '), isEmpty);
+  });
+
+  testWidgets('supplies can be added with just a name', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: ProductCatalogPage()));
+    await tester.runAsync(() async {
+      await tester.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    });
+    await tester.pumpAndSettle();
+
+    Future<void> add(String name, {String supplierNumber = ''}) async {
+      await tester.runAsync(() async {
+        await tester.tap(find.text('New product'));
+      });
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Product name'),
+        name,
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Supplier order number'),
+        supplierNumber,
+      );
+      await tester.runAsync(() async {
+        await tester.tap(find.text('Save product'));
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      });
+      await tester.pumpAndSettle();
+    }
+
+    await add('Loctite 243');
+    await add('Plastic gear grease', supplierNumber: 'PG-100');
+    final catalog = (await tester.runAsync(loadProductCatalog))!;
+    final loctite = catalog.singleWhere((p) => p.name == 'Loctite 243');
+    expect(loctite.sku, 'LOCTITE-243');
+    expect(loctite.productIdentification, 'LOCTITE-243');
+    expect(loctite.orderNumber, isEmpty);
+    final grease = catalog.singleWhere((p) => p.name == 'Plastic gear grease');
+    expect(grease.sku, 'PG-100');
+    expect(grease.productIdentification, isEmpty);
+    expect(grease.orderNumber, 'PG-100');
+
+    // The same name again is refused instead of saved twice.
+    await tester.runAsync(() async {
+      await tester.tap(find.text('New product'));
+    });
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Product name'),
+      'loctite 243',
+    );
+    await tester.tap(find.text('Save product'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('A product with this name is already in the catalog'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('without Firebase only products added on the device', (

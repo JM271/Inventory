@@ -333,6 +333,24 @@ class _ProductCatalogPageState extends State<ProductCatalogPage> {
   );
 }
 
+/// The number a new product is kept under: our product ID, else the
+/// supplier order number (as for the supplier's catalogue products), else
+/// the name in upper case with dashes ("Loctite 243" → "LOCTITE-243"), for
+/// supplies that have no number at all.
+String newProductSku({
+  required String productId,
+  required String supplierNumber,
+  required String name,
+}) {
+  if (productId.trim().isNotEmpty) return productId.trim();
+  if (supplierNumber.trim().isNotEmpty) return supplierNumber.trim();
+  return name
+      .trim()
+      .toUpperCase()
+      .replaceAll(RegExp(r'[^\p{L}\p{N}]+', unicode: true), '-')
+      .replaceAll(RegExp(r'^-+|-+$'), '');
+}
+
 class _NewProductPage extends StatefulWidget {
   const _NewProductPage({required this.products, this.cloud});
   final CloudInventory? cloud;
@@ -358,13 +376,19 @@ class _NewProductPageState extends State<_NewProductPage> {
     super.dispose();
   }
 
+  String get sku => newProductSku(
+    productId: productNumber.text,
+    supplierNumber: orderNumber.text,
+    name: name.text,
+  );
+
   Future<void> save() async {
     if (saving || !form.currentState!.validate()) return;
     setState(() => saving = true);
     try {
       if (widget.cloud != null) {
         final row = {
-          'sku': productNumber.text.trim().toUpperCase(),
+          'sku': sku.toUpperCase(),
           'name': name.text.trim(),
           'category': category,
           'supplierSku': orderNumber.text.trim(),
@@ -378,8 +402,9 @@ class _NewProductPageState extends State<_NewProductPage> {
       final product = Part(
         id: 'custom-${DateTime.now().microsecondsSinceEpoch}',
         name: name.text.trim(),
-        sku: productNumber.text.trim(),
-        productNumber: productNumber.text.trim(),
+        sku: sku,
+        // Kept under its supplier number, a product has no ID of ours.
+        productNumber: sku == orderNumber.text.trim() ? '' : sku,
         orderNumber: orderNumber.text.trim(),
         category: category,
       );
@@ -423,17 +448,27 @@ class _NewProductPageState extends State<_NewProductPage> {
           const SizedBox(height: 16),
           TextFormField(
             controller: productNumber,
-            decoration: const InputDecoration(labelText: 'Our product ID'),
+            decoration: const InputDecoration(
+              labelText: 'Our product ID',
+              helperText:
+                  'Optional. Without one the supplier order number is used, '
+                  'else the name.',
+              helperMaxLines: 2,
+            ),
             validator: (value) {
-              final code = value?.trim() ?? '';
-              if (code.isEmpty) return 'Enter our product ID';
+              final code = sku.toLowerCase();
+              // Without a name there is nothing to check yet.
+              if (code.isEmpty) return null;
               if (widget.products.any(
                 (p) =>
-                    p.productIdentification.toLowerCase() ==
-                        code.toLowerCase() ||
-                    p.sku.toLowerCase() == code.toLowerCase(),
+                    p.productIdentification.toLowerCase() == code ||
+                    p.sku.toLowerCase() == code,
               )) {
-                return 'This product ID is already in the catalog';
+                return (value?.trim() ?? '').isNotEmpty
+                    ? 'This product ID is already in the catalog'
+                    : orderNumber.text.trim().isNotEmpty
+                    ? 'This supplier order number is already in the catalog'
+                    : 'A product with this name is already in the catalog';
               }
               return null;
             },
