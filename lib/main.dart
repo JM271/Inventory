@@ -105,27 +105,36 @@ class _InventoryPageState extends State<InventoryPage> {
   /// Compact list that shows only the product names; remembered per device.
   bool namesOnly = false;
   SharedPreferences? prefs;
-  StreamSubscription<dynamic>? cloudSubscription, priceSubscription;
+  StreamSubscription<dynamic>? cloudSubscription,
+      priceSubscription,
+      savedPriceSubscription;
 
-  /// Catalogue prices in cents by upper-case SKU (bexio, shared with the
-  /// offers app). Parts carry no price themselves.
-  Map<String, int> prices = {};
-  void setPrices(Iterable<Map<String, dynamic>> rows) {
-    final next = {
-      for (final row in rows)
-        if ((row['sku'] as String? ?? '').trim().toUpperCase() case final sku
-            when sku.isNotEmpty)
-          sku: (row['priceCents'] as num? ?? 0).toInt(),
-    };
-    if (mounted) setState(() => prices = next);
-  }
+  /// Prices in cents by upper-case number, as in the offers app: [prices]
+  /// from the shared catalogue (bexio), [savedPrices] saved in the offers
+  /// app for numbers without a catalogue price. Parts carry no price
+  /// themselves.
+  Map<String, int> prices = {}, savedPrices = {};
+  static Map<String, int> pricesBySku(Iterable<Map<String, dynamic>> rows) => {
+    for (final row in rows)
+      if ((row['sku'] as String? ?? '').trim().toUpperCase() case final sku
+          when sku.isNotEmpty)
+        sku: (row['priceCents'] as num? ?? 0).toInt(),
+  };
 
-  /// The part's catalogue price in cents, or null if it has none.
+  /// The part's price in cents, or null if it has none. A catalogue price
+  /// wins over a saved one, as in the offers app.
   int? priceOf(Part p) {
-    final cents =
-        prices[p.sku.trim().toUpperCase()] ??
-        prices[p.productNumber.toUpperCase()];
-    return cents == null || cents <= 0 ? null : cents;
+    final numbers = [
+      p.sku.trim().toUpperCase(),
+      p.productNumber.trim().toUpperCase(),
+    ];
+    for (final source in [prices, savedPrices]) {
+      for (final number in numbers) {
+        final cents = source[number] ?? 0;
+        if (cents > 0) return cents;
+      }
+    }
+    return null;
   }
 
   bool cloudBusy = false, fromCache = true;
@@ -134,6 +143,7 @@ class _InventoryPageState extends State<InventoryPage> {
   void dispose() {
     cloudSubscription?.cancel();
     priceSubscription?.cancel();
+    savedPriceSubscription?.cancel();
     super.dispose();
   }
 
@@ -208,15 +218,20 @@ class _InventoryPageState extends State<InventoryPage> {
     );
   }
 
-  /// Prices live only in the shared catalogue; without Firebase there are
+  /// Prices live only in the shared database; without Firebase there are
   /// none.
   void loadPrices() {
     final cloud = widget.cloud;
     if (cloud == null) return;
-    priceSubscription = cloud.products.snapshots().listen(
-      (snapshot) => setPrices(snapshot.docs.map((d) => d.data())),
-      onError: (Object e) => debugPrint('Preise nicht geladen: $e'),
-    );
+    void onError(Object e) => debugPrint('Preise nicht geladen: $e');
+    priceSubscription = cloud.products.snapshots().listen((snapshot) {
+      final next = pricesBySku(snapshot.docs.map((d) => d.data()));
+      if (mounted) setState(() => prices = next);
+    }, onError: onError);
+    savedPriceSubscription = cloud.partPrices.snapshots().listen((snapshot) {
+      final next = pricesBySku(snapshot.docs.map((d) => d.data()));
+      if (mounted) setState(() => savedPrices = next);
+    }, onError: onError);
   }
 
   Future<void> load() async {
@@ -955,17 +970,39 @@ class _InventoryPageState extends State<InventoryPage> {
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
-                                  // Stock at the selected site, or the
-                                  // total over all sites; red when low.
-                                  trailing: Text(
-                                    '${visibleQuantity(p)}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 16,
-                                      color: visibleLow(p)
-                                          ? Theme.of(context).colorScheme.error
-                                          : ink,
-                                    ),
+                                  // The price, then the stock at the
+                                  // selected site or the total over all
+                                  // sites; red when low.
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (priceOf(p) case final cents?)
+                                        Text(
+                                          formatChf(cents),
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.black54,
+                                          ),
+                                        ),
+                                      ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          minWidth: 40,
+                                        ),
+                                        child: Text(
+                                          '${visibleQuantity(p)}',
+                                          textAlign: TextAlign.end,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 16,
+                                            color: visibleLow(p)
+                                                ? Theme.of(context)
+                                                      .colorScheme
+                                                      .error
+                                                : ink,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                   onTap: () => edit(p),
                                 ),

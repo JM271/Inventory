@@ -43,6 +43,11 @@ class CloudInventory {
   CollectionReference<Map<String, dynamic>> get products =>
       workshop.collection('products');
 
+  /// Sales prices saved in the offers app for numbers without a catalogue
+  /// price (imported or remembered from an offer); the app only reads them.
+  CollectionReference<Map<String, dynamic>> get partPrices =>
+      workshop.collection('partPrices');
+
   /// The products' pictures, one document per file name of an imageAsset.
   /// Saved by tool/product_images; the app only reads them.
   CollectionReference<Map<String, dynamic>> get productImages =>
